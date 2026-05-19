@@ -59,27 +59,54 @@ static void touchpad_read(lv_indev_drv_t *indev, lv_indev_data_t *data) {
     }
 }
 
-// ─── Backlight init: tries all three hardware revisions ──────────────────
-// V1.0 :  TCA9534 IO expander @ 0x18 — pin 1 HIGH enables backlight rail (no brightness ctrl)
-// V1.1 :  STC8H1K28 µC @ 0x30 — byte 0x10 = max brightness, 0x05 = off (discrete 0x05..0x10)
-// V1.2 :  STC8H1K28 µC @ 0x30 — byte 0 = max, 244 = min, 245 = off (continuous)
+// ─── Backlight init: V1.1 protocol (also works on V1.0 / V1.2) ────────────
+// V1.1 requires a two-step dance:
+//   1. The STC8H1K28 µC at I2C 0x30 boots slower than the ESP32.
+//      We must wait for both the µC (0x30) and GT911 touch (0x5D) to ACK on I2C.
+//      While waiting, we send command 0x19 to the µC to kick it into a responsive state.
+//   2. Once the µC is up, send byte 0x10 to 0x30 → max brightness backlight ON.
 //
-// We send all three. Whichever IC is present ACKs; the others NACK harmlessly.
-// We send 0x10 to 0x30 which means MAX on V1.1 and level-16 (near-max) on V1.2,
-// so a single byte covers both µC protocols. No library needed.
+// V1.0 hardware uses TCA9534 @ 0x18 for backlight rail enable — also done here harmlessly.
+static void sendI2CCommand(uint8_t command) {
+    Wire.beginTransmission(0x30);
+    Wire.write(command);
+    Wire.endTransmission();
+}
+
+static bool i2cScanForAddress(uint8_t address) {
+    Wire.beginTransmission(address);
+    return Wire.endTransmission() == 0;
+}
+
 static void backlight_init() {
-    // V1.0 path: TCA9534 — config pins 1-4 as outputs, drive backlight rail HIGH
+    // V1.0 path: TCA9534 IO expander — drive pins 1, 2, 4 HIGH (backlight rail + reset)
     Wire.beginTransmission(0x18); Wire.write(0x03); Wire.write(0xE1); Wire.endTransmission();
     Wire.beginTransmission(0x18); Wire.write(0x01); Wire.write(0x16); Wire.endTransmission();
 
-    // V1.1 + V1.2 path: STC8H1K28 brightness byte
-    Wire.beginTransmission(0x30); Wire.write((uint8_t)0x10); Wire.endTransmission();
+    // V1.1 + V1.2 path: wake the STC8H1K28 µC, wait for it + GT911 to come online,
+    // then send max-brightness command. Up to ~5 second timeout.
+    int tries = 0;
+    while (tries < 50) {
+        if (i2cScanForAddress(0x30) && i2cScanForAddress(0x5D)) {
+            Serial.println("[LegacyTape] microcontroller (0x30) + touch (0x5D) ready");
+            break;
+        }
+        Serial.printf("[LegacyTape] waking microcontroller (try %d)\n", tries);
+        sendI2CCommand(0x19);                  // wake the µC
+        pinMode(1, OUTPUT);                    // GT911 reset sequence
+        digitalWrite(1, LOW);
+        delay(120);
+        pinMode(1, INPUT);
+        delay(100);
+        tries++;
+    }
+
+    sendI2CCommand(0x10);                      // backlight ON, max brightness
 }
 
-// Set brightness. On V1.1 valid range is 0x05 (off) .. 0x10 (max).
-// On V1.2 valid range is 0 (max) .. 244 (min), 245 (off).
+// V1.1 valid range: 0x05 (off) .. 0x10 (max). V1.2 valid range: 0 (max) .. 244 (min), 245 (off).
 static void backlight_set(uint8_t level) {
-    Wire.beginTransmission(0x30); Wire.write(level); Wire.endTransmission();
+    sendI2CCommand(level);
 }
 
 // ─── MCP23017 IO expander (0x20) — Uxcell piano interlock buttons on PORTA pins 0-4 ──
@@ -194,26 +221,24 @@ void setup() {
     Serial.begin(115200);
     Serial.println("[LegacyTape] booting");
 
+    // I2S mic BCLK pin must be set as output before I2C (factory code does this)
+    pinMode(19, OUTPUT);
+
     // I2C up first so touch + backlight + MCP23017 can ACK.
     Wire.begin(15, 16);
     Wire.setClock(400000);
     delay(50);
 
-    // GT911 power-on address selection (selects 0x5D over 0x14)
-    pinMode(1, OUTPUT);
-    digitalWrite(1, LOW);
-    delay(120);
-    pinMode(1, INPUT);
-
+    // Wake the backlight µC, wait for it + GT911, then enable backlight.
+    // (GT911 reset on GPIO 1 happens inside backlight_init's wait loop.)
     backlight_init();
     buttons_init();
 
     // Display & touch (RGB parallel + GT911 via LovyanGFX).
     gfx.init();
     gfx.initDMA();
-    gfx.setBrightness(255);
+    gfx.startWrite();
     gfx.fillScreen(TFT_BLACK);
-    backlight_set(0x10);       // 0x10 = max on V1.1, near-max on V1.2 — works for both
 
     // LVGL init + framebuffers in PSRAM (8 MB available, 1.5 MB double buffer is fine).
     lv_init();
