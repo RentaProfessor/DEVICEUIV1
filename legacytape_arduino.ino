@@ -42,9 +42,15 @@ static lv_color_t *buf2 = NULL;
 static uint16_t touch_x = 0, touch_y = 0;
 
 static void disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
-    uint32_t w = (area->x2 - area->x1 + 1);
-    uint32_t h = (area->y2 - area->y1 + 1);
-    gfx.pushImageDMA(area->x1, area->y1, w, h, (uint16_t *)&color_p->full);
+    // Factory pattern: gfx.startWrite() is held open after setup, so we must
+    // close the existing transaction before pushing DMA pixels.
+    if (gfx.getStartCount() > 0) {
+        gfx.endWrite();
+    }
+    gfx.pushImageDMA(area->x1, area->y1,
+                     area->x2 - area->x1 + 1,
+                     area->y2 - area->y1 + 1,
+                     (lgfx::rgb565_t *)&color_p->full);
     lv_disp_flush_ready(disp);
 }
 
@@ -256,7 +262,6 @@ void setup() {
     disp_drv.ver_res = LCD_V_RES;
     disp_drv.flush_cb = disp_flush;
     disp_drv.draw_buf = &draw_buf;
-    disp_drv.full_refresh = 1;             // avoid tearing on RGB panel
     lv_disp_drv_register(&disp_drv);
 
     static lv_indev_drv_t indev_drv;
@@ -274,5 +279,5 @@ void setup() {
 void loop() {
     lv_timer_handler();
     buttons_poll();
-    delay(5);
+    delay(1);
 }
