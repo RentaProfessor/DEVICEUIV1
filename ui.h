@@ -55,7 +55,6 @@ LV_FONT_DECLARE(ui_font_Arhivo_regular_18);
 LV_FONT_DECLARE(ui_font_Arhivo_regular_20);
 LV_FONT_DECLARE(ui_font_Arhivo_regular_22);
 LV_FONT_DECLARE(ui_font_Font1);
-LV_FONT_DECLARE(ui_font_archivo_32);
 LV_FONT_DECLARE(ui_font_archivo_42);
 LV_FONT_DECLARE(ui_font_archivo_56);
 LV_FONT_DECLARE(ui_font_archivo_50);

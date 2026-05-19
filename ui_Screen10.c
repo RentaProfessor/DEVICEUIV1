@@ -48,7 +48,7 @@ void ui_Screen10_screen_init(void) {
         lv_obj_set_pos(n, 16, 16);
         lv_label_set_text(n, chs[i].num);
         lv_obj_set_style_text_color(n, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(n, &ui_font_archivo_32, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_text_font(n, &ui_font_archivo_42, LV_PART_MAIN | LV_STATE_DEFAULT);
 
         lv_obj_t *t = lv_label_create(row);
         lv_obj_set_pos(t, 80, 19);
