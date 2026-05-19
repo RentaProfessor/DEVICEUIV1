@@ -262,6 +262,10 @@ void setup() {
     disp_drv.ver_res = LCD_V_RES;
     disp_drv.flush_cb = disp_flush;
     disp_drv.draw_buf = &draw_buf;
+    // RGB panels + many widgets: full_refresh pushes one complete frame per cycle
+    // instead of many small DMA bursts that overlap with the panel's scanout and
+    // cause visible tearing. Both buffers are full-screen sized, so this works.
+    disp_drv.full_refresh = 1;
     lv_disp_drv_register(&disp_drv);
 
     static lv_indev_drv_t indev_drv;
