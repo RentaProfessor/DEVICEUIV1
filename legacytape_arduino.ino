@@ -59,19 +59,25 @@ static void touchpad_read(lv_indev_drv_t *indev, lv_indev_data_t *data) {
     }
 }
 
-// ─── Backlight + buzzer: try both V1.0/V1.1 (TCA9534 @0x18) and V1.2 (STC8H1K28 @0x30) paths ──
-// Whichever IC is on your panel ACKs; the other NACKs harmlessly. No library required.
+// ─── Backlight init: tries all three hardware revisions ──────────────────
+// V1.0 :  TCA9534 IO expander @ 0x18 — pin 1 HIGH enables backlight rail (no brightness ctrl)
+// V1.1 :  STC8H1K28 µC @ 0x30 — byte 0x10 = max brightness, 0x05 = off (discrete 0x05..0x10)
+// V1.2 :  STC8H1K28 µC @ 0x30 — byte 0 = max, 244 = min, 245 = off (continuous)
+//
+// We send all three. Whichever IC is present ACKs; the others NACK harmlessly.
+// We send 0x10 to 0x30 which means MAX on V1.1 and level-16 (near-max) on V1.2,
+// so a single byte covers both µC protocols. No library needed.
 static void backlight_init() {
-    // V1.0/V1.1 path: TCA9534 IO expander at 0x18.
-    //   Config register (0x03): 1=input, 0=output. Set pins 1-4 as outputs → 0xE1.
-    //   Output register (0x01): drive pin 1 (backlight rail), 2 (panel reset deassert), 4 high.
+    // V1.0 path: TCA9534 — config pins 1-4 as outputs, drive backlight rail HIGH
     Wire.beginTransmission(0x18); Wire.write(0x03); Wire.write(0xE1); Wire.endTransmission();
     Wire.beginTransmission(0x18); Wire.write(0x01); Wire.write(0x16); Wire.endTransmission();
 
-    // V1.2 path: STC8H1K28 µC at 0x30. Byte 0 = max brightness.
-    Wire.beginTransmission(0x30); Wire.write((uint8_t)0); Wire.endTransmission();
+    // V1.1 + V1.2 path: STC8H1K28 brightness byte
+    Wire.beginTransmission(0x30); Wire.write((uint8_t)0x10); Wire.endTransmission();
 }
 
+// Set brightness. On V1.1 valid range is 0x05 (off) .. 0x10 (max).
+// On V1.2 valid range is 0 (max) .. 244 (min), 245 (off).
 static void backlight_set(uint8_t level) {
     Wire.beginTransmission(0x30); Wire.write(level); Wire.endTransmission();
 }
@@ -207,7 +213,7 @@ void setup() {
     gfx.initDMA();
     gfx.setBrightness(255);
     gfx.fillScreen(TFT_BLACK);
-    backlight_set(0);          // 0 = full brightness on STC8H1K28
+    backlight_set(0x10);       // 0x10 = max on V1.1, near-max on V1.2 — works for both
 
     // LVGL init + framebuffers in PSRAM (8 MB available, 1.5 MB double buffer is fine).
     lv_init();
