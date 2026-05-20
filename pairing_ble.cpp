@@ -23,6 +23,7 @@
 
 #include "pairing_ble.h"
 #include "pairing.h"
+#include "cloud_sync.h"            // declares cloud_sync_begin() with C linkage
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -30,8 +31,6 @@
 #include <BLE2902.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
-
-extern void cloud_sync_begin();   // implemented in cloud_sync.cpp
 
 static BLEServer         *g_server        = nullptr;
 static BLECharacteristic *g_pair_char     = nullptr;
