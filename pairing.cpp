@@ -10,11 +10,19 @@ static Preferences prefs;
 static const char *NS         = "legacytape";
 static const char *KEY_TOKEN  = "tok";        // 32 hex chars
 static const char *KEY_PAIRED = "paired";     // bool
+static const char *KEY_SSID   = "ssid";       // wifi SSID
+static const char *KEY_PW     = "pw";         // wifi password
+static const char *KEY_ACCT   = "acct";       // user account id (UUID)
 
 // In-memory cached strings (stable pointers for callers).
 static char s_device_id[12]  = {0};   // "LT-XXXXXX" + null
 static char s_token_hex[33]  = {0};   // 32 hex + null
 static char s_qr_url[96]     = {0};   // "legacytape://pair?d=LT-XXXXXX&t=<32>"
+static char s_ssid[33]       = {0};   // 32 chars max per WiFi spec
+static char s_pw[64]         = {0};   // 63 chars max per WiFi spec
+static char s_acct[64]       = {0};   // UUID + safety margin
+
+static volatile bool s_complete_event = false;   // single-shot edge flag
 
 static void hex_encode(const uint8_t *bytes, size_t n, char *out) {
     static const char H[] = "0123456789abcdef";
@@ -61,10 +69,20 @@ void pairing_begin(void) {
              "legacytape://pair?d=%s&t=%s",
              s_device_id, s_token_hex);
 
+    // Load stored credentials if already paired
+    bool paired = prefs.getBool(KEY_PAIRED, false);
+    if (paired) {
+        String ssid = prefs.getString(KEY_SSID, "");
+        String pw   = prefs.getString(KEY_PW, "");
+        String acct = prefs.getString(KEY_ACCT, "");
+        strncpy(s_ssid, ssid.c_str(), sizeof(s_ssid) - 1);
+        strncpy(s_pw,   pw.c_str(),   sizeof(s_pw) - 1);
+        strncpy(s_acct, acct.c_str(), sizeof(s_acct) - 1);
+    }
+
     Serial.printf("[pairing] device ID: %s\n", s_device_id);
     Serial.printf("[pairing] QR URL:    %s\n", s_qr_url);
-    Serial.printf("[pairing] paired:    %s\n",
-                  prefs.getBool(KEY_PAIRED, false) ? "yes" : "no");
+    Serial.printf("[pairing] paired:    %s\n", paired ? "yes" : "no");
 
     prefs.end();
 }
@@ -80,8 +98,38 @@ void pairing_mark_complete(void) {
     prefs.begin(NS, false);
     prefs.putBool(KEY_PAIRED, true);
     prefs.end();
+    s_complete_event = true;
     Serial.println("[pairing] marked complete in NVS");
 }
+
+bool pairing_consume_complete_event(void) {
+    if (s_complete_event) {
+        s_complete_event = false;
+        return true;
+    }
+    return false;
+}
+
+bool pairing_store_credentials(const char *ssid, const char *pw, const char *acct) {
+    if (!ssid || !pw || !acct) return false;
+    if (strlen(ssid) > 32 || strlen(pw) > 63 || strlen(acct) > 63) return false;
+
+    strncpy(s_ssid, ssid, sizeof(s_ssid) - 1); s_ssid[sizeof(s_ssid) - 1] = 0;
+    strncpy(s_pw,   pw,   sizeof(s_pw) - 1);   s_pw[sizeof(s_pw) - 1] = 0;
+    strncpy(s_acct, acct, sizeof(s_acct) - 1); s_acct[sizeof(s_acct) - 1] = 0;
+
+    prefs.begin(NS, false);
+    bool ok = prefs.putString(KEY_SSID, s_ssid) > 0
+           && prefs.putString(KEY_PW,   s_pw)   > 0
+           && prefs.putString(KEY_ACCT, s_acct) > 0;
+    prefs.end();
+    if (ok) Serial.printf("[pairing] credentials stored: ssid=%s acct=%s\n", s_ssid, s_acct);
+    return ok;
+}
+
+const char *pairing_get_wifi_ssid(void) { return s_ssid; }
+const char *pairing_get_wifi_pw(void)   { return s_pw; }
+const char *pairing_get_account(void)   { return s_acct; }
 
 void pairing_factory_reset(void) {
     prefs.begin(NS, false);

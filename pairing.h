@@ -33,10 +33,39 @@ void pairing_mark_complete(void);
 // Useful for a Settings → Reset Pairing button.
 void pairing_factory_reset(void);
 
+// Store credentials received over BLE. Returns true on success (NVS write OK).
+// Called by the BLE module after validating the payload.
+bool pairing_store_credentials(const char *ssid, const char *pw, const char *acct);
+
+// Retrieve stored credentials (only valid once pairing_is_complete()).
+// Returned pointers are valid until pairing_get_*() is called again.
+const char *pairing_get_wifi_ssid(void);
+const char *pairing_get_wifi_pw(void);
+const char *pairing_get_account(void);
+
+// Set when pairing_mark_complete() is called; consumed by the main loop
+// to trigger Screen1 -> Screen2 transition. Cleared after one read.
+bool pairing_consume_complete_event(void);
+
 // Pairing URL the QR code encodes, e.g.:
 //   legacytape://pair?d=LT-A1B2C3&t=8c4a7b9e6f1d2a3b5c4d6e7f8a9b0c1d
 // Pointer stays valid for the lifetime of the program.
 const char *pairing_get_qr_url(void);
+
+// BLE service + characteristic UUIDs (locked with iOS app)
+#define LT_BLE_SERVICE_UUID    "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0001"
+#define LT_BLE_PAIR_CHAR_UUID  "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0002"  // write
+#define LT_BLE_STATUS_UUID     "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0003"  // notify
+
+// Status bytes the device notifies on the status characteristic
+#define LT_STATUS_IDLE           0x00
+#define LT_STATUS_VALIDATING     0x01
+#define LT_STATUS_WIFI_CONNECTING 0x02
+#define LT_STATUS_PAIRED         0x03
+#define LT_STATUS_ERR_TOKEN      0xE1
+#define LT_STATUS_ERR_JSON       0xE2
+#define LT_STATUS_ERR_WIFI       0xE3
+#define LT_STATUS_ERR_INTERNAL   0xE4
 
 // Human-readable device ID derived from the ESP32 MAC.
 // Format: "LT-XXXXXX" (last 3 bytes of MAC as hex).

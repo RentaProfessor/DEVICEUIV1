@@ -47,6 +47,7 @@ Install in Arduino IDE → Sketch → Include Library → Manage Libraries:
 |---|---|---|
 | **lvgl** | 8.3.3 (or 8.3.x) | `lvgl/lvgl` — exactly this version family, others may not be ABI-compatible |
 | **LovyanGFX** | latest | `lovyan03/LovyanGFX` |
+| **ArduinoJson** | 7.x | `bblanchon/ArduinoJson` — used by the BLE pairing module to parse the credentials payload |
 
 That's it. **No TCA9534, no MCP23017, no Adafruit libraries.** The sketch talks to every I2C peripheral (backlight controller, MCP23017 button expander, GT911 touch) directly over `Wire` with raw register reads/writes. If the chip isn't on your board (e.g., MCP23017 not wired yet), the calls NACK and the sketch silently continues — your UI still boots and touch still works.
 

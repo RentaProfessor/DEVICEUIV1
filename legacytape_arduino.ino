@@ -30,6 +30,7 @@
 #include "ui.h"
 #include "pins_config.h"
 #include "pairing.h"
+#include "pairing_ble.h"
 
 // No external I/O-expander libraries needed for the preliminary build —
 // we talk to every I2C peripheral (backlight, MCP23017) directly through Wire.
@@ -279,9 +280,12 @@ void setup() {
     wire_existing_screens();
 
     // Initialize pairing token + persist it in NVS. Render a live QR code on
-    // Screen1 encoding the pairing URL. Cofounder's phone app/website will
-    // scan this and use BLE to deliver WiFi credentials back to the device.
+    // Screen1 encoding the pairing URL. iOS app scans this and uses BLE to
+    // deliver WiFi credentials back to the device.
     pairing_begin();
+
+    // Start BLE advertising for the pairing service. No-op if already paired.
+    pairing_ble_begin();
 
     if (ui_Screen1) {
         // Hide the static QR-card placeholder image — we draw our own card + QR.
@@ -337,5 +341,15 @@ void setup() {
 void loop() {
     lv_timer_handler();
     buttons_poll();
+
+    // If BLE pairing just completed, advance Screen1 -> Screen2 and tear down
+    // the BLE stack to free ~30 KB RAM for the rest of the UI.
+    if (pairing_consume_complete_event()) {
+        Serial.println("[LegacyTape] pairing complete -> advancing to Screen2");
+        pairing_ble_stop();
+        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 400, 0,
+                          &ui_Screen2_screen_init);
+    }
+
     delay(1);
 }
