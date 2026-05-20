@@ -2,7 +2,7 @@
 #include <Preferences.h>
 #include <esp_system.h>
 #include <esp_random.h>
-#include <WiFi.h>          // for WiFi.macAddress()
+#include <Esp.h>           // ESP.getEfuseMac() — reads MAC from efuse without needing WiFi.begin()
 
 static Preferences prefs;
 
@@ -26,10 +26,15 @@ static void hex_encode(const uint8_t *bytes, size_t n, char *out) {
 }
 
 static void compute_device_id(void) {
-    uint8_t mac[6] = {0};
-    WiFi.macAddress(mac);
+    // ESP.getEfuseMac() reads the 48-bit chip MAC from efuse — works at boot,
+    // no WiFi.begin() required. Bytes are in reversed order: if real MAC is
+    // AA:BB:CC:DD:EE:FF then getEfuseMac() returns 0xFFEEDDCCBBAA.
+    // We want the last 3 bytes of the real MAC (DD, EE, FF) = shifts 24, 32, 40.
+    uint64_t mac = ESP.getEfuseMac();
     snprintf(s_device_id, sizeof(s_device_id), "LT-%02X%02X%02X",
-             mac[3], mac[4], mac[5]);
+             (uint8_t)((mac >> 24) & 0xFF),
+             (uint8_t)((mac >> 32) & 0xFF),
+             (uint8_t)((mac >> 40) & 0xFF));
 }
 
 void pairing_begin(void) {

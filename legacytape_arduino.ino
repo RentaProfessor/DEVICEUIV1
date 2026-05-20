@@ -287,9 +287,10 @@ void setup() {
         // Hide the static QR-card placeholder image — we draw our own card + QR.
         if (ui_Image1) lv_obj_add_flag(ui_Image1, LV_OBJ_FLAG_HIDDEN);
 
-        // Cream card on the right side of Screen1 (~336px wide x 380px tall)
+        // Cream card on the right side of Screen1. Sized to fit QR + 2 labels
+        // with even visual breathing room top-to-bottom.
         lv_obj_t *card = lv_obj_create(ui_Screen1);
-        lv_obj_set_size(card, 280, 360);
+        lv_obj_set_size(card, 280, 320);
         lv_obj_align(card, LV_ALIGN_RIGHT_MID, -30, 0);
         lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_color(card, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -297,26 +298,33 @@ void setup() {
         lv_obj_set_style_border_color(card, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(card, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(card, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(card, 20, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_pad_all(card, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-        // Live QR code rendering the pairing URL. Black-on-cream for max contrast.
-        lv_obj_t *qr = lv_qrcode_create(card, 220,
-                                        lv_color_hex(0x2A1A12),   // dark squares
-                                        lv_color_hex(0xF6ECD4));  // background matches card
-        lv_obj_align(qr, LV_ALIGN_TOP_MID, 0, 0);
+        // QR code positioned with explicit offsets so spacing is predictable
+        // regardless of LVGL flex/padding behavior.
+        // Card is 320 tall. Layout target:
+        //   16 px top margin
+        //   210 px QR
+        //   24 px gap
+        //   ~22 px "SCAN WITH APP"
+        //   ~18 px "LT-XXXXXX"
+        //   30 px bottom margin
+        lv_obj_t *qr = lv_qrcode_create(card, 210,
+                                        lv_color_hex(0x2A1A12),
+                                        lv_color_hex(0xF6ECD4));
+        lv_obj_align(qr, LV_ALIGN_TOP_MID, 0, 16);
         const char *url = pairing_get_qr_url();
         lv_qrcode_update(qr, url, strlen(url));
 
-        // Caption: "SCAN WITH APP" + device ID for tech support reference
         lv_obj_t *cap = lv_label_create(card);
-        lv_obj_align(cap, LV_ALIGN_BOTTOM_MID, 0, -20);
+        lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 250);
         lv_label_set_text(cap, "SCAN WITH APP");
         lv_obj_set_style_text_color(cap, lv_color_hex(0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_font(cap, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_letter_space(cap, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
         lv_obj_t *did = lv_label_create(card);
-        lv_obj_align(did, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_align(did, LV_ALIGN_TOP_MID, 0, 278);
         lv_label_set_text(did, pairing_get_device_id());
         lv_obj_set_style_text_color(did, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_font(did, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
