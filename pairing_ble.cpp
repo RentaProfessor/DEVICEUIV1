@@ -103,9 +103,10 @@ static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
 // ─── BLE callbacks ──────────────────────────────────────────────────────────
 class PairCharCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *chr) override {
-        std::string raw = chr->getValue();
-        Serial.printf("[ble] pair char write: %u bytes\n", (unsigned)raw.size());
-        if (raw.empty() || raw.size() > 480) {
+        // ESP32 Arduino core 3.x returns Arduino String here (was std::string in 2.x)
+        String raw = chr->getValue();
+        Serial.printf("[ble] pair char write: %u bytes\n", (unsigned)raw.length());
+        if (raw.length() == 0 || raw.length() > 480) {
             notify_status(LT_STATUS_ERR_JSON);
             return;
         }
