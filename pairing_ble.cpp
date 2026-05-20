@@ -31,6 +31,7 @@
 #include <BLE2902.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
+#include <lvgl.h>                  // for lv_timer_handler() during WiFi wait
 
 static BLEServer         *g_server        = nullptr;
 static BLECharacteristic *g_pair_char     = nullptr;
@@ -76,6 +77,7 @@ static void publish_wifi_list() {
 
 // ─── WiFi credentials handler ───────────────────────────────────────────────
 // Attempt WiFi connection. Returns true if connected within timeout.
+// Yields to LVGL every iteration so the UI doesn't freeze during the 20s wait.
 static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     if (!ssid || strlen(ssid) == 0) return false;
     Serial.printf("[ble] connecting to WiFi SSID='%s'\n", ssid);
@@ -85,9 +87,16 @@ static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     WiFi.begin(ssid, pw);
 
     uint32_t start = millis();
+    uint32_t last_log = start;
     while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout_ms) {
-        delay(200);
-        Serial.print('.');
+        // Keep the LVGL UI alive during the wait — otherwise the screen
+        // freezes for up to 20 seconds and looks like a hang/glitch
+        lv_timer_handler();
+        delay(20);
+        if (millis() - last_log > 1000) {
+            Serial.print('.');
+            last_log = millis();
+        }
     }
     Serial.println();
 
@@ -185,10 +194,13 @@ class ServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer *srv) override {
         g_client_connected = true;
         Serial.println("[ble] client connected");
-        // Kick off a fresh WiFi scan so the list is current when the app reads 0x0004
-        g_wifi_scan_published = false;
-        WiFi.mode(WIFI_STA);
-        WiFi.scanNetworks(true);   // async, non-blocking
+        // NOTE: We used to kick off WiFi.scanNetworks(true) here to populate the
+        // 0x0004 WiFi list characteristic. Removed in v2 because:
+        //   - iOS app is in Phase 1 (user types SSID manually) and ignores
+        //     this characteristic
+        //   - BLE + WiFi scan simultaneously caused visible LVGL frame
+        //     drops/glitches during pairing
+        // Phase 2 will re-enable this with proper radio coexistence handling.
     }
     void onDisconnect(BLEServer *srv) override {
         g_client_connected = false;
