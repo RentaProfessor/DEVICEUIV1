@@ -74,6 +74,12 @@ If you want timer-based animations (lamp pulse, reels) you also need:
 #define LV_USE_TIMER 1
 ```
 
+**For the live pairing QR code on Screen1, enable the QR widget:**
+```c
+#define LV_USE_QRCODE 1
+```
+Without this you'll get a linker error: `undefined reference to 'lv_qrcode_create'`. The widget depends on LVGL's bundled qrcodegen — no extra library install needed.
+
 ## Arduino IDE board settings
 
 ```

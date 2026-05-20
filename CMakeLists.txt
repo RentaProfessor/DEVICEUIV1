@@ -2,6 +2,7 @@ SET(SOURCES ui_comp_welcomelabel.c
     ui_comp_smallerlabel.c
     ui_comp.c
     ui_widgets.c
+    pairing.cpp
     ui_Screen1.c
     ui_Screen2.c
     ui_Screen3.c
