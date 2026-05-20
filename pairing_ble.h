@@ -21,6 +21,10 @@ void pairing_ble_begin(void);
 // Call after pairing completes (the iOS app has disconnected).
 void pairing_ble_stop(void);
 
+// Call from main loop — publishes WiFi scan results to the BLE characteristic
+// once an async scan completes.
+void pairing_ble_loop(void);
+
 #ifdef __cplusplus
 }
 #endif

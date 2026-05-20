@@ -31,6 +31,7 @@
 #include "pins_config.h"
 #include "pairing.h"
 #include "pairing_ble.h"
+#include "cloud_sync.h"
 
 // No external I/O-expander libraries needed for the preliminary build —
 // we talk to every I2C peripheral (backlight, MCP23017) directly through Wire.
@@ -341,11 +342,16 @@ void setup() {
 void loop() {
     lv_timer_handler();
     buttons_poll();
+    pairing_ble_loop();   // publishes WiFi scan results when ready
+    cloud_sync_loop();    // polls Supabase for onboarding_complete (no-op until cloud_sync_begin)
 
-    // If BLE pairing just completed, advance Screen1 -> Screen2 and tear down
-    // the BLE stack to free ~30 KB RAM for the rest of the UI.
+    // pairing_mark_complete() is now fired by cloud_sync when Supabase reports
+    // onboarding_complete=true (after the iOS app finishes the survey), NOT by
+    // BLE 0x03 status. When the event fires, advance Screen1 -> Screen2 and
+    // tear down the BLE stack to free ~30 KB RAM for the rest of the UI.
     if (pairing_consume_complete_event()) {
-        Serial.println("[LegacyTape] pairing complete -> advancing to Screen2");
+        Serial.println("[LegacyTape] onboarding complete -> advancing to Screen2");
+        cloud_sync_stop();
         pairing_ble_stop();
         _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 400, 0,
                           &ui_Screen2_screen_init);

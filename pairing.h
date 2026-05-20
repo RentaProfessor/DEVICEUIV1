@@ -34,13 +34,18 @@ void pairing_mark_complete(void);
 void pairing_factory_reset(void);
 
 // Store credentials received over BLE. Returns true on success (NVS write OK).
-// Called by the BLE module after validating the payload.
-bool pairing_store_credentials(const char *ssid, const char *pw, const char *acct);
+// Called by the BLE module after validating the payload. ssid2/pw2 may be NULL
+// for the single-network case.
+bool pairing_store_credentials(const char *ssid,  const char *pw,
+                               const char *ssid2, const char *pw2,
+                               const char *acct);
 
 // Retrieve stored credentials (only valid once pairing_is_complete()).
 // Returned pointers are valid until pairing_get_*() is called again.
 const char *pairing_get_wifi_ssid(void);
 const char *pairing_get_wifi_pw(void);
+const char *pairing_get_wifi_ssid2(void);   // secondary network ("" if not provided)
+const char *pairing_get_wifi_pw2(void);
 const char *pairing_get_account(void);
 
 // Set when pairing_mark_complete() is called; consumed by the main loop
@@ -56,6 +61,7 @@ const char *pairing_get_qr_url(void);
 #define LT_BLE_SERVICE_UUID    "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0001"
 #define LT_BLE_PAIR_CHAR_UUID  "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0002"  // write
 #define LT_BLE_STATUS_UUID     "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0003"  // notify
+#define LT_BLE_WIFILIST_UUID   "1ec0de7a-7e2d-4f4f-9c1d-1ec0de7a0004"  // read/notify
 
 // Status bytes the device notifies on the status characteristic
 #define LT_STATUS_IDLE           0x00
