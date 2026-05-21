@@ -32,6 +32,7 @@
 #include "pairing.h"
 #include "pairing_ble.h"
 #include "cloud_sync.h"
+#include "book.h"
 
 // No external I/O-expander libraries needed for the preliminary build —
 // we talk to every I2C peripheral (backlight, MCP23017) directly through Wire.
@@ -213,8 +214,18 @@ static void s1_advance(lv_event_t *e) {
         _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0, &ui_Screen2_screen_init);
 }
 static void s3_kb_done(lv_event_t *e) {
-    if (lv_event_get_code(e) == LV_EVENT_READY || lv_event_get_code(e) == LV_EVENT_CANCEL)
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
+        // Capture whatever the user typed in the textarea and persist it
+        // so Screen4's cassette label shows the real book name.
+        if (ui_TextArea1) {
+            const char *typed = lv_textarea_get_text(ui_TextArea1);
+            if (typed && strlen(typed) > 0) {
+                book_set_name(typed);
+            }
+        }
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0, &ui_Screen4_screen_init);
+    }
 }
 
 // Debug: log every event on Screen2's "NAME YOUR BOOK" button so we can see
@@ -290,6 +301,10 @@ void setup() {
 
     ui_init();
     wire_existing_screens();
+
+    // Load book name + chapter list from NVS before anything renders, so
+    // Screen4's cassette + Screen10's chapter list show real data.
+    book_begin();
 
     // Initialize pairing token + persist it in NVS. Render a live QR code on
     // Screen1 encoding the pairing URL. iOS app scans this and uses BLE to

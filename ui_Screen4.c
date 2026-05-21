@@ -1,6 +1,7 @@
 // Screen4 — Ready (home state). Cassette static, amber pilot lamp, hw-legend visible.
 #include "ui.h"
 #include "ui_widgets.h"
+#include "book.h"
 
 lv_obj_t *ui_Screen4 = NULL;
 lv_obj_t *ui_S4_Timer = NULL;
@@ -118,7 +119,9 @@ void ui_Screen4_screen_init(void) {
 
     ui_S4_BookTitle = lv_label_create(labelband);
     lv_obj_center(ui_S4_BookTitle);
-    lv_label_set_text(ui_S4_BookTitle, "Grandpa's Stories");
+    // Read book name from NVS (set by user on Screen3 keyboard).
+    // Falls back to "My Stories" if nothing was entered yet.
+    lv_label_set_text(ui_S4_BookTitle, book_get_name());
     lv_obj_set_style_text_color(ui_S4_BookTitle, lv_color_hex(0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_S4_BookTitle, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -155,14 +158,20 @@ void ui_Screen4_screen_init(void) {
 
     ui_S4_ChapterNum = lv_label_create(banner);
     lv_obj_set_pos(ui_S4_ChapterNum, 18, 10);
-    lv_label_set_text(ui_S4_ChapterNum, "CHAPTER 03");
+    // Show CHAPTER NN with the active chapter's 1-based index
+    char chnum[16];
+    snprintf(chnum, sizeof(chnum), "CHAPTER %02d", book_get_active_chapter() + 1);
+    lv_label_set_text(ui_S4_ChapterNum, chnum);
     lv_obj_set_style_text_color(ui_S4_ChapterNum, lv_color_hex(0xC89060), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_S4_ChapterNum, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_letter_space(ui_S4_ChapterNum, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_S4_ChapterTitle = lv_label_create(banner);
     lv_obj_set_pos(ui_S4_ChapterTitle, 18, 32);
-    lv_label_set_text(ui_S4_ChapterTitle, "THE EARLY YEARS");
+    // Show the actual active chapter name from NVS
+    int active = book_get_active_chapter();
+    const char *chname = book_get_chapter_name(active);
+    lv_label_set_text(ui_S4_ChapterTitle, chname ? chname : "Chapter 1");
     lv_obj_set_style_text_color(ui_S4_ChapterTitle, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_S4_ChapterTitle, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 

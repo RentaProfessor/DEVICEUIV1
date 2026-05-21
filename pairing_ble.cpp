@@ -93,8 +93,7 @@ static void publish_wifi_list() {
 static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     if (!ssid || strlen(ssid) == 0) return false;
     Serial.printf("[ble] connecting to WiFi SSID='%s'\n", ssid);
-
-    g_busy = true;          // tell main loop to suspend LVGL refreshes
+    // g_busy is already true (set in onConnect). LVGL stays suspended.
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(false, true);
@@ -111,8 +110,6 @@ static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
         }
     }
     Serial.println();
-
-    g_busy = false;         // resume LVGL
 
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("[ble] WiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
@@ -209,18 +206,19 @@ class WifiListCharCallbacks : public BLECharacteristicCallbacks {
 class ServerCallbacks : public BLEServerCallbacks {
     void onConnect(BLEServer *srv) override {
         g_client_connected = true;
-        Serial.println("[ble] client connected");
-        // NOTE: We used to kick off WiFi.scanNetworks(true) here to populate the
-        // 0x0004 WiFi list characteristic. Removed in v2 because:
-        //   - iOS app is in Phase 1 (user types SSID manually) and ignores
-        //     this characteristic
-        //   - BLE + WiFi scan simultaneously caused visible LVGL frame
-        //     drops/glitches during pairing
-        // Phase 2 will re-enable this with proper radio coexistence handling.
+        // Suspend LVGL for the ENTIRE BLE session, not just WiFi connect.
+        // Reason: the credential write, the BLE notify acks, the JSON parse,
+        // and any incidental BLE traffic all spike PSRAM use. The RGB panel
+        // DMA + LVGL frame redraws fight that for bandwidth → visible glitches.
+        // Phone-side user is staring at their phone the whole time, so the
+        // frozen device screen isn't seen.
+        g_busy = true;
+        Serial.println("[ble] client connected (LVGL suspended)");
     }
     void onDisconnect(BLEServer *srv) override {
         g_client_connected = false;
-        Serial.println("[ble] client disconnected");
+        g_busy = false;
+        Serial.println("[ble] client disconnected (LVGL resumed)");
         if (!pairing_is_complete()) {
             BLEDevice::startAdvertising();
         }

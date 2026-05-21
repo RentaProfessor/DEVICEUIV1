@@ -5,6 +5,7 @@ SET(SOURCES ui_comp_welcomelabel.c
     pairing.cpp
     pairing_ble.cpp
     cloud_sync.cpp
+    book.cpp
     ui_Screen1.c
     ui_Screen2.c
     ui_Screen3.c

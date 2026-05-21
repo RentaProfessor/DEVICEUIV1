@@ -246,5 +246,8 @@ void ltw_picker_header(lv_obj_t *parent,
     lv_obj_set_style_text_color(cll, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(cll, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_center(cll);
-    if (on_close) lv_obj_add_event_cb(cl, on_close, LV_EVENT_ALL, NULL);
+    if (on_close) {
+        lv_obj_add_event_cb(cl, on_close, LV_EVENT_PRESSED, NULL);
+        lv_obj_add_event_cb(cl, on_close, LV_EVENT_CLICKED, NULL);
+    }
 }
