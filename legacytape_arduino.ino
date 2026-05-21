@@ -340,7 +340,12 @@ void setup() {
 }
 
 void loop() {
-    lv_timer_handler();
+    // Suspend LVGL refresh while the BLE module is doing WiFi.begin() —
+    // RGB panel DMA otherwise contends with WiFi's PSRAM buffers and the
+    // screen visibly glitches. Static frame stays on screen for ~5-10s.
+    if (!pairing_ble_is_busy()) {
+        lv_timer_handler();
+    }
     buttons_poll();
     pairing_ble_loop();   // publishes WiFi scan results when ready
     cloud_sync_loop();    // polls Supabase for onboarding_complete (no-op until cloud_sync_begin)

@@ -31,7 +31,6 @@
 #include <BLE2902.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include <lvgl.h>                  // for lv_timer_handler() during WiFi wait
 
 static BLEServer         *g_server        = nullptr;
 static BLECharacteristic *g_pair_char     = nullptr;
@@ -39,6 +38,9 @@ static BLECharacteristic *g_status_char   = nullptr;
 static BLECharacteristic *g_wifilist_char = nullptr;
 static volatile bool      g_client_connected = false;
 static bool               g_wifi_scan_published = false;
+// True while wifi_try() is mid-connect. Main loop checks this and skips
+// lv_timer_handler() so the RGB panel DMA doesn't fight WiFi's PSRAM use.
+static volatile bool      g_busy = false;
 
 // ─── Status notifications ───────────────────────────────────────────────────
 static void notify_status(uint8_t code) {
@@ -77,28 +79,40 @@ static void publish_wifi_list() {
 
 // ─── WiFi credentials handler ───────────────────────────────────────────────
 // Attempt WiFi connection. Returns true if connected within timeout.
-// Yields to LVGL every iteration so the UI doesn't freeze during the 20s wait.
+//
+// IMPORTANT: We deliberately do NOT call lv_timer_handler() during the wait.
+// The ESP32-S3 RGB panel framebuffer lives in PSRAM and is read continuously
+// by the LCD DMA. WiFi.begin() / packet activity also hits PSRAM heavily for
+// its own buffers. Triggering an LVGL frame redraw while WiFi is active
+// causes visible PSRAM bandwidth contention -> horizontal jitter / glitching.
+//
+// So during this 5-15 second WiFi connect window, we let LVGL freeze on its
+// last frame. BLE notifications still flow (they're handled on a separate
+// FreeRTOS task, not the main loop). Touch input is ignored during the wait,
+// which is fine — the user just submitted credentials and is waiting.
 static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     if (!ssid || strlen(ssid) == 0) return false;
     Serial.printf("[ble] connecting to WiFi SSID='%s'\n", ssid);
+
+    g_busy = true;          // tell main loop to suspend LVGL refreshes
+
     WiFi.mode(WIFI_STA);
-    WiFi.disconnect(false, true);   // clear any cached state
+    WiFi.disconnect(false, true);
     delay(100);
     WiFi.begin(ssid, pw);
 
     uint32_t start = millis();
     uint32_t last_log = start;
     while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout_ms) {
-        // Keep the LVGL UI alive during the wait — otherwise the screen
-        // freezes for up to 20 seconds and looks like a hang/glitch
-        lv_timer_handler();
-        delay(20);
+        delay(100);
         if (millis() - last_log > 1000) {
             Serial.print('.');
             last_log = millis();
         }
     }
     Serial.println();
+
+    g_busy = false;         // resume LVGL
 
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("[ble] WiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
@@ -107,6 +121,8 @@ static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     Serial.printf("[ble] WiFi '%s' connect failed, status=%d\n", ssid, WiFi.status());
     return false;
 }
+
+bool pairing_ble_is_busy(void) { return g_busy; }
 
 // ─── BLE callbacks ──────────────────────────────────────────────────────────
 class PairCharCallbacks : public BLECharacteristicCallbacks {

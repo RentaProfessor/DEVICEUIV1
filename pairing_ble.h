@@ -25,6 +25,11 @@ void pairing_ble_stop(void);
 // once an async scan completes.
 void pairing_ble_loop(void);
 
+// True while the BLE module is mid-WiFi-connect. The main loop should skip
+// lv_timer_handler() while this is true — RGB panel DMA + WiFi PSRAM use
+// otherwise contend and cause visible screen glitching.
+bool pairing_ble_is_busy(void);
+
 #ifdef __cplusplus
 }
 #endif
