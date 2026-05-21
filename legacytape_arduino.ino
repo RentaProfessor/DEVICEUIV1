@@ -217,12 +217,23 @@ static void s3_kb_done(lv_event_t *e) {
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0, &ui_Screen4_screen_init);
 }
 
+// Debug: log every event on Screen2's "NAME YOUR BOOK" button so we can see
+// whether LVGL is receiving touch presses on it after BLE/WiFi teardown.
+static void s2_button_debug(lv_event_t *e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code == LV_EVENT_PRESSED)        Serial.println("[debug] Screen2 button PRESSED");
+    else if (code == LV_EVENT_RELEASED)  Serial.println("[debug] Screen2 button RELEASED");
+    else if (code == LV_EVENT_CLICKED)   Serial.println("[debug] Screen2 button CLICKED (should advance to Screen3)");
+}
+
 static void wire_existing_screens() {
     if (ui_Screen1) lv_obj_add_event_cb(ui_Screen1, s1_advance, LV_EVENT_CLICKED, NULL);
     if (ui_Screen3 && ui_Keyboard2) {
         lv_keyboard_set_textarea(ui_Keyboard2, ui_TextArea1);
         lv_obj_add_event_cb(ui_Keyboard2, s3_kb_done, LV_EVENT_ALL, NULL);
     }
+    // Diagnostic: log all events on Screen2's button so we know if taps register
+    if (ui_Button1) lv_obj_add_event_cb(ui_Button1, s2_button_debug, LV_EVENT_ALL, NULL);
 }
 
 // ─── Setup / loop ──────────────────────────────────────────────────────────
@@ -358,7 +369,10 @@ void loop() {
         Serial.println("[LegacyTape] onboarding complete -> advancing to Screen2");
         cloud_sync_stop();
         pairing_ble_stop();
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 400, 0,
+        // ANIM_NONE = instant cut. The MOVE_LEFT animation was visibly laggy
+        // because it runs 400ms of LVGL frame redraws right after BLE deinit
+        // frees ~30 KB and WiFi is still doing background work in PSRAM.
+        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_NONE, 0, 0,
                           &ui_Screen2_screen_init);
     }
 
