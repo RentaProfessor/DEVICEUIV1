@@ -22,6 +22,10 @@ void book_begin(void);
 const char *book_get_name(void);
 void        book_set_name(const char *name);
 
+// True if the user has explicitly set a book name (vs. the default fallback).
+// Used by Screen8 to decide whether to show a real book tile.
+bool        book_has_name(void);
+
 // Chapter list. Index 0 = first chapter.
 // On fresh boot returns 1 chapter named "Chapter 1".
 int         book_get_chapter_count(void);

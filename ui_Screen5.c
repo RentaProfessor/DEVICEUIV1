@@ -5,8 +5,9 @@ lv_obj_t *ui_Screen5 = NULL;
 lv_obj_t *ui_S5_Timer = NULL;
 lv_obj_t *ui_S5_PilotLamp = NULL;
 
-static void s5_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen10_screen_init); }
-static void s5_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen8_screen_init); }
+static void s5_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init); }
+static void s5_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init); }
+static void s5_to_stopped(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen6,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen6_screen_init); }
 
 void ui_Screen5_screen_init(void) {
     ui_Screen5 = lv_obj_create(NULL);
@@ -17,7 +18,12 @@ void ui_Screen5_screen_init(void) {
     ltw_topbar(ui_Screen5, LT_RED, "RECORDING", "00:00:00", &ui_S5_PilotLamp, NULL, &ui_S5_Timer);
     ltw_cassette(ui_Screen5, 620, 230, -16, "Grandpa's Stories", "REC");
     // STOP transition is handled by the physical STOP button via MCP23017 — no touch sim needed.
-    ltw_hw_legend(ui_Screen5, "Recording", NULL, NULL, NULL, "Stop");
+    ltw_hw_legend(ui_Screen5,
+                  "Recording", NULL,
+                  NULL,        NULL,
+                  NULL,        NULL,
+                  NULL,        NULL,
+                  "Stop",      s5_to_stopped);
     ltw_chapter_banner(ui_Screen5, "CHAPTER 03", "THE EARLY YEARS", s5_to_chapter, s5_to_book);
 }
 

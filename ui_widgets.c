@@ -95,35 +95,46 @@ lv_obj_t *ltw_chapter_banner(lv_obj_t *parent,
 }
 
 void ltw_hw_legend(lv_obj_t *parent,
-                   const char *lbl_rec, const char *lbl_play,
-                   const char *lbl_rwd, const char *lbl_ff,
-                   const char *lbl_stop) {
-    const char *caps[5] = {"REC", "PLAY", "RWD", "FF", "STOP"};
-    const char *lbls[5] = {lbl_rec, lbl_play, lbl_rwd, lbl_ff, lbl_stop};
-    uint32_t cs[5] = {0xC83A2A, 0x2A4830, 0x3A2A18, 0x3A2A18, 0x2A2018};
-    int xs[5] = {30, 200, 370, 540, 710};
+                   const char *lbl_rec,  lv_event_cb_t cb_rec,
+                   const char *lbl_play, lv_event_cb_t cb_play,
+                   const char *lbl_rwd,  lv_event_cb_t cb_rwd,
+                   const char *lbl_ff,   lv_event_cb_t cb_ff,
+                   const char *lbl_stop, lv_event_cb_t cb_stop) {
+    const char    *caps[5] = {"REC", "PLAY", "RWD", "FF", "STOP"};
+    const char    *lbls[5] = {lbl_rec,  lbl_play,  lbl_rwd,  lbl_ff,  lbl_stop};
+    lv_event_cb_t  cbs[5]  = {cb_rec,   cb_play,   cb_rwd,   cb_ff,   cb_stop};
+    uint32_t       cs[5]   = {0xC83A2A, 0x2A4830,  0x3A2A18, 0x3A2A18, 0x2A2018};
+    uint32_t       cs_p[5] = {0x8A2418, 0x1A3020,  0x2A1E10, 0x2A1E10, 0x1A1410};  // pressed colors
+    // Bigger, more finger-friendly: 84x48 (vs old 50x26)
+    const int W = 84, H = 48;
+    const int y_caps = 332;
+    const int spacing = (800 - 5 * W) / 6;       // even gaps between caps
     for (int i = 0; i < 5; i++) {
-        lv_obj_t *c = lv_obj_create(parent);
-        lv_obj_set_size(c, 50, 26);
-        lv_obj_set_pos(c, xs[i], 308);
+        int x = spacing + i * (W + spacing);
+        bool active   = (lbls[i] != NULL);
+        bool tappable = (cbs[i]  != NULL);
+
+        // Use a real button if tappable so we get press feedback for free
+        lv_obj_t *c = tappable ? lv_btn_create(parent) : lv_obj_create(parent);
+        lv_obj_set_size(c, W, H);
+        lv_obj_set_pos(c, x, y_caps);
         lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(c, lv_color_hex(cs[i]), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(c, lbls[i] ? 255 : 90, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(c, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(c, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(c, lv_color_hex(cs[i]),   LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(c, lv_color_hex(cs_p[i]), LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(c, active ? 255 : 90, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_radius(c, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_width(c, tappable ? 2 : 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(c, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_opa(c, 80, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(c, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+        if (tappable) lv_obj_add_event_cb(c, cbs[i], LV_EVENT_CLICKED, NULL);
+
         lv_obj_t *cl = lv_label_create(c);
         lv_obj_center(cl);
         lv_label_set_text(cl, caps[i]);
         lv_obj_set_style_text_color(cl, lv_color_hex(0xFFF0E0), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(cl, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
-        if (lbls[i]) {
-            lv_obj_t *t = lv_label_create(parent);
-            lv_obj_set_pos(t, xs[i] - 4, 338);
-            lv_label_set_text(t, lbls[i]);
-            lv_obj_set_style_text_color(t, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_text_font(t, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
-        }
+        lv_obj_set_style_text_font(cl, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_text_letter_space(cl, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     }
 }
 

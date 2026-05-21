@@ -61,6 +61,10 @@ const char *book_get_name(void) {
     return (s_name[0] != 0) ? s_name : "My Stories";
 }
 
+bool book_has_name(void) {
+    return s_name[0] != 0;
+}
+
 void book_set_name(const char *name) {
     if (!name) return;
     strncpy(s_name, name, BOOK_MAX_NAME_LEN);

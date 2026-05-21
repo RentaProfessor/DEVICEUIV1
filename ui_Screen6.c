@@ -5,8 +5,10 @@ lv_obj_t *ui_Screen6 = NULL;
 lv_obj_t *ui_S6_Timer = NULL;
 lv_obj_t *ui_S6_PilotLamp = NULL;
 
-static void s6_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen10_screen_init); }
-static void s6_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen8_screen_init); }
+static void s6_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init); }
+static void s6_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init); }
+static void s6_to_rec(lv_event_t *e)     { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen5,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen5_screen_init); }
+static void s6_to_play(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen7,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen7_screen_init); }
 
 void ui_Screen6_screen_init(void) {
     ui_Screen6 = lv_obj_create(NULL);
@@ -18,7 +20,12 @@ void ui_Screen6_screen_init(void) {
     // Cassette static — tape is parked. REC/PLAY/RWD/FF transitions handled by physical buttons.
     ltw_cassette(ui_Screen6, 620, 230, -16, "Grandpa's Stories", NULL);
 
-    ltw_hw_legend(ui_Screen6, "Overdub", "Play", "Rewind", "Fast Fwd", NULL);
+    ltw_hw_legend(ui_Screen6,
+                  "Overdub",  s6_to_rec,
+                  "Play",     s6_to_play,
+                  "Rewind",   NULL,
+                  "Fast Fwd", NULL,
+                  NULL,       NULL);
     ltw_chapter_banner(ui_Screen6, "CHAPTER 03 - 03:47", "THE EARLY YEARS", s6_to_chapter, s6_to_book);
 }
 

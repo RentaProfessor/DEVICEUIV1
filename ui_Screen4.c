@@ -13,15 +13,25 @@ lv_obj_t *ui_S4_BookTitle = NULL;
 
 void ui_event_S4_btn_chapter(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen10_screen_init);
+        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init);
 }
 void ui_event_S4_btn_book(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_MOVE_LEFT, 250, 0, &ui_Screen8_screen_init);
+        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init);
 }
 void ui_event_S4_btn_settings(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen14, LV_SCR_LOAD_ANIM_FADE_ON, 250, 0, &ui_Screen14_screen_init);
+        _ui_screen_change(&ui_Screen14, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen14_screen_init);
+}
+// On-screen transport buttons (REC + PLAY) — wired to Ready -> Recording / Playback.
+// These stand in for the Uxcell hardware buttons until they're physically wired.
+void ui_event_S4_btn_rec(lv_event_t *e) {
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED)
+        _ui_screen_change(&ui_Screen5, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen5_screen_init);
+}
+void ui_event_S4_btn_play(lv_event_t *e) {
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED)
+        _ui_screen_change(&ui_Screen7, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen7_screen_init);
 }
 
 void ui_Screen4_screen_init(void) {
@@ -139,8 +149,13 @@ void ui_Screen4_screen_init(void) {
         lv_obj_set_style_pad_all(reel, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     }
 
-    // ───── HW BUTTON LEGEND (5 Uxcell piano interlock buttons) ─────
-    ltw_hw_legend(ui_Screen4, "Record", "Play", "Rewind", "Fast Fwd", "Stop");
+    // ───── HW BUTTON LEGEND (tappable touch buttons until Uxcell is wired) ─────
+    ltw_hw_legend(ui_Screen4,
+                  "Record",   ui_event_S4_btn_rec,
+                  "Play",     ui_event_S4_btn_play,
+                  "Rewind",   NULL,
+                  "Fast Fwd", NULL,
+                  "Stop",     NULL);
 
     // ───── CHAPTER BANNER ─────
     lv_obj_t *banner = lv_obj_create(ui_Screen4);

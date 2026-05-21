@@ -16,6 +16,8 @@ extern lv_obj_t *ui_S4_BookTitle;
 extern void ui_event_S4_btn_chapter(lv_event_t *e);
 extern void ui_event_S4_btn_book(lv_event_t *e);
 extern void ui_event_S4_btn_settings(lv_event_t *e);
+extern void ui_event_S4_btn_rec(lv_event_t *e);
+extern void ui_event_S4_btn_play(lv_event_t *e);
 #ifdef __cplusplus
 }
 #endif

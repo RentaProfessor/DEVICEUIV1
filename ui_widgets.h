@@ -40,15 +40,21 @@ lv_obj_t *ltw_chapter_banner(lv_obj_t *parent,
                              lv_event_cb_t on_chapter,
                              lv_event_cb_t on_book);
 
-// Builds the 5-cap hw legend row at y=308 for the Uxcell piano interlock buttons.
-// Layout left-to-right: REC · PLAY · RWD · FF · STOP. Pass NULL for any label to
-// render that cap dimmed (= button not meaningful in the current state).
+// Builds the 5-cap hw legend row for the Uxcell piano interlock buttons.
+// Layout left-to-right: REC · PLAY · RWD · FF · STOP.
+//
+// Until the user wires the real Uxcell piano switch through the MCP23017,
+// these are touch buttons on the device screen. Pass a callback for each
+// cap that should be tappable; pass NULL to render that cap dimmed (= not
+// meaningful in the current state).
+//
+// Pass NULL for label to dim, NULL for callback to make it non-tappable.
 void ltw_hw_legend(lv_obj_t *parent,
-                   const char *lbl_rec,
-                   const char *lbl_play,
-                   const char *lbl_rwd,
-                   const char *lbl_ff,
-                   const char *lbl_stop);
+                   const char *lbl_rec,  lv_event_cb_t cb_rec,
+                   const char *lbl_play, lv_event_cb_t cb_play,
+                   const char *lbl_rwd,  lv_event_cb_t cb_rwd,
+                   const char *lbl_ff,   lv_event_cb_t cb_ff,
+                   const char *lbl_stop, lv_event_cb_t cb_stop);
 
 // Builds a centered cassette panel with book title. w,h sized.
 // Tag is "REC" / "OUT" or NULL to skip the VU meter on the right.
