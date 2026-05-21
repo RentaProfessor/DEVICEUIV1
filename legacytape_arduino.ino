@@ -33,6 +33,8 @@
 #include "pairing_ble.h"
 #include "cloud_sync.h"
 #include "book.h"
+#include "audio_record.h"
+#include "audio_upload.h"
 
 // No external I/O-expander libraries needed for the preliminary build —
 // we talk to every I2C peripheral (backlight, MCP23017) directly through Wire.
@@ -305,6 +307,9 @@ void setup() {
     // Load book name + chapter list from NVS before anything renders, so
     // Screen4's cassette + Screen10's chapter list show real data.
     book_begin();
+
+    // Allocate the recording PSRAM buffer + unmute mic. Runs once at boot.
+    audio_record_begin();
 
     // Initialize pairing token + persist it in NVS. Render a live QR code on
     // Screen1 encoding the pairing URL. iOS app scans this and uses BLE to

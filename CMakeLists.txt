@@ -6,6 +6,8 @@ SET(SOURCES ui_comp_welcomelabel.c
     pairing_ble.cpp
     cloud_sync.cpp
     book.cpp
+    audio_record.cpp
+    audio_upload.cpp
     ui_Screen1.c
     ui_Screen2.c
     ui_Screen3.c
