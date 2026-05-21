@@ -1,15 +1,16 @@
-// Legacy Tape — audio recording from built-in PDM mic.
+// Legacy Tape — continuous-streaming audio recording.
 //
-// CrowPanel V1.1 has an onboard PDM microphone wired to GPIO 19 (CLK) and
-// GPIO 20 (DATA). It's muted at boot; sending I2C byte sequence 0x00 0x17
-// to the STC8H1K28 µC at I2C 0x30 unmutes it.
+// Captures from the built-in PDM mic (GPIO 19 CLK + GPIO 20 DATA) and
+// chunks the raw PCM into 10-second segments. Each chunk is handed off
+// to the upload module which POSTs it to a Supabase Edge Function.
+// The server reassembles the chunks into one WAV file per session.
 //
-// Default capture: 16 kHz mono 16-bit. At this rate one minute of audio is
-// ~1.9 MB. With ~5 MB usable PSRAM after LVGL+BLE+WiFi, we cap a single
-// recording at AUDIO_MAX_SECONDS (180s by default).
+// Two PSRAM ring buffers (320 KB each = 10 s @ 16 kHz mono 16-bit):
+// while one fills with mic data, the other is being uploaded. This gives
+// us ~10 seconds of WiFi-drop tolerance before audio loss begins.
 //
-// Recording runs on a dedicated FreeRTOS task on Core 1, so it can keep up
-// with I2S samples while the main loop continues to run LVGL.
+// Recording is "unlimited" length: as long as WiFi keeps up with the
+// 32 KB/s capture rate, the user can record for hours.
 #ifndef LEGACYTAPE_AUDIO_RECORD_H
 #define LEGACYTAPE_AUDIO_RECORD_H
 
@@ -21,38 +22,45 @@ extern "C" {
 #endif
 
 #define AUDIO_SAMPLE_RATE   16000
-#define AUDIO_MAX_SECONDS   180       // 3 minutes; one chapter take
+#define AUDIO_CHUNK_SECONDS 10
+#define AUDIO_CHUNK_BYTES   (AUDIO_SAMPLE_RATE * 2 * AUDIO_CHUNK_SECONDS)  // 320 KB
 
 typedef enum {
     AUDIO_STATE_IDLE,
     AUDIO_STATE_RECORDING,
-    AUDIO_STATE_FINISHED,            // recording stopped, WAV is ready
+    AUDIO_STATE_FINALIZING,    // STOP pressed, last chunk + finalize call in flight
+    AUDIO_STATE_COMPLETE,      // recording fully uploaded + finalized server-side
     AUDIO_STATE_ERROR
 } audio_state_t;
 
-// Call once at boot. Allocates the PSRAM buffer + unmutes mic.
-// Returns false if PSRAM alloc fails.
+// Boot-time init: allocate PSRAM buffers, unmute mic via I2C 0x30. Idempotent.
 bool audio_record_begin(void);
 
-// Start a fresh recording. Reuses the buffer (no realloc). Safe to call
-// when state is IDLE or FINISHED (resets to RECORDING). Returns false if
-// already recording or if mic init fails.
+// Start a fresh recording session. Generates a new session_id (32-char hex).
+// Returns false if already recording or if start fails.
 bool audio_record_start(void);
 
-// Stop the current recording. Finalizes the WAV header in the buffer.
-// State becomes FINISHED. Safe to call when not recording (no-op).
+// Stop capturing. Submits any partial chunk, then triggers finalize on the
+// upload side. State goes RECORDING -> FINALIZING -> COMPLETE.
 void audio_record_stop(void);
 
-// Reset state to IDLE and discard the captured audio. Use after a
-// successful upload to free the buffer for the next recording.
-void audio_record_reset(void);
+audio_state_t  audio_record_state(void);
+uint32_t       audio_record_seconds(void);            // total captured time
+uint8_t        audio_record_level_percent(void);      // 0..100 for VU meter
+const char    *audio_record_session_id(void);         // current/last session UUID
+uint32_t       audio_record_chunks_captured(void);    // sequential ID of next chunk
 
-// State + stats accessors (safe to call at any time, including mid-record).
-audio_state_t audio_record_state(void);
-uint32_t      audio_record_seconds(void);         // current/final duration
-uint8_t       audio_record_level_percent(void);   // 0..100 for VU meter
-const uint8_t *audio_record_wav_data(void);       // valid after FINISHED
-size_t        audio_record_wav_size(void);        // valid after FINISHED
+// ─── Internal API used by audio_upload only ───
+// Get the next ready-to-upload chunk. Caller must release it. Returns false
+// if no chunk is ready. Non-blocking.
+typedef struct {
+    uint8_t *data;
+    size_t   size;
+    uint32_t idx;
+    void    *_internal;   // opaque handle so release knows which slot to free
+} audio_chunk_t;
+bool audio_record_take_chunk(audio_chunk_t *out);
+void audio_record_release_chunk(const audio_chunk_t *chunk);
 
 #ifdef __cplusplus
 }

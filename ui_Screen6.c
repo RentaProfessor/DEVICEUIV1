@@ -30,24 +30,29 @@ static void s6_to_play(lv_event_t *e) {
 
 static void s6_tick(lv_timer_t *t) {
     if (!ui_S6_StatusLabel) return;
-    upload_state_t st = audio_upload_state();
+    audio_state_t st = audio_record_state();
     char buf[96];
-    switch (st) {
-        case UPLOAD_IDLE:
-            lv_label_set_text(ui_S6_StatusLabel, "Recording saved locally");
-            break;
-        case UPLOAD_RUNNING:
-            snprintf(buf, sizeof(buf), "Uploading to cloud… %u%%", audio_upload_progress_percent());
+    uint32_t uploaded = audio_upload_chunks_uploaded();
+    uint32_t total    = audio_record_chunks_captured();
+
+    if (st == AUDIO_STATE_FINALIZING) {
+        if (total > 0) {
+            uint8_t pct = (uint8_t)((uint32_t)uploaded * 100 / total);
+            snprintf(buf, sizeof(buf), "Uploading last chunks… %u / %u (%u%%)",
+                     (unsigned)uploaded, (unsigned)total, pct);
             lv_label_set_text(ui_S6_StatusLabel, buf);
-            break;
-        case UPLOAD_SUCCESS:
-            lv_label_set_text(ui_S6_StatusLabel, "Uploaded — transcribing on server");
-            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 600);
-            break;
-        case UPLOAD_FAILED:
-            snprintf(buf, sizeof(buf), "Upload failed: %.70s", audio_upload_last_error());
-            lv_label_set_text(ui_S6_StatusLabel, buf);
-            break;
+            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, (lv_coord_t)(600u * pct / 100u));
+        } else {
+            lv_label_set_text(ui_S6_StatusLabel, "Finalizing…");
+        }
+    } else if (st == AUDIO_STATE_COMPLETE) {
+        lv_label_set_text(ui_S6_StatusLabel, "Uploaded — transcribing on server");
+        if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 600);
+    } else if (audio_upload_last_error()[0] != 0) {
+        snprintf(buf, sizeof(buf), "Issue: %.70s", audio_upload_last_error());
+        lv_label_set_text(ui_S6_StatusLabel, buf);
+    } else {
+        lv_label_set_text(ui_S6_StatusLabel, "Recording saved");
     }
 }
 

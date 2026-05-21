@@ -17,18 +17,15 @@ static void s5_to_book(lv_event_t *e) {
         _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init);
 }
 
-// STOP button: stop the recording, fire upload, advance to Screen6 Stopped.
+// STOP button: stop capturing. Upload module finishes streaming the
+// remaining chunks + sends finalize. Advance to Screen6 immediately —
+// it will show upload progress as the last chunks land.
 static void s5_to_stopped(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    Serial.println("[S5] STOP pressed — finalizing recording");
-    audio_record_stop();
+    Serial.println("[S5] STOP pressed — finalizing");
     uint32_t secs = audio_record_seconds();
-    if (secs > 0) {
-        audio_upload_begin(audio_record_wav_data(),
-                           audio_record_wav_size(),
-                           secs,
-                           book_get_active_chapter());
-    }
+    audio_upload_request_finalize(secs, book_get_active_chapter());
+    audio_record_stop();
     _ui_screen_change(&ui_Screen6, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen6_screen_init);
 }
 

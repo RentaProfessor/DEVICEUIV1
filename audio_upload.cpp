@@ -1,5 +1,7 @@
-// Async WAV upload to Supabase Edge Function `upload_recording`.
+// Pulls chunks from audio_record + POSTs them to Supabase upload_chunk.
+// After audio_record signals finalize, sends finalize_recording.
 #include "audio_upload.h"
+#include "audio_record.h"
 #include "pairing.h"
 #include "book.h"
 #include <Arduino.h>
@@ -9,109 +11,149 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-// Same Supabase project + anon key used by cloud_sync.cpp
 static const char *SUPABASE_URL      = "https://uunxgkhhjjczeeawqflh.supabase.co";
 static const char *SUPABASE_ANON_KEY = "sb_publishable_cBhuF6-XRJJxNv9hxHBUDw_M3lBpwqF";
 
-static volatile upload_state_t g_state = UPLOAD_IDLE;
-static volatile uint8_t        g_progress = 0;
-static char                    g_err[96] = {0};
+static volatile bool        g_running     = false;
+static volatile uint32_t    g_uploaded    = 0;
+static char                 g_err[96]     = {0};
+static TaskHandle_t         g_task        = nullptr;
+static volatile bool        g_finalize_pending = false;
+static volatile uint32_t    g_final_duration   = 0;
+static volatile int         g_final_chapter    = 0;
 
-// Snapshot of upload args — captured into statics so the task can read them
-static const uint8_t *g_wav         = nullptr;
-static size_t         g_wav_size    = 0;
-static uint32_t       g_duration    = 0;
-static int            g_chapter_idx = 0;
-static TaskHandle_t   g_task        = nullptr;
-
-static void set_err(const char *msg) {
-    strncpy(g_err, msg, sizeof(g_err) - 1);
+static void set_err(const char *m) {
+    strncpy(g_err, m, sizeof(g_err) - 1);
     g_err[sizeof(g_err) - 1] = 0;
     Serial.printf("[upload] error: %s\n", g_err);
 }
 
-static void upload_task(void *) {
-    g_state = UPLOAD_RUNNING;
-    g_progress = 0;
-    g_err[0] = 0;
-    Serial.printf("[upload] starting: %u bytes, %us, chapter %d\n",
-                  (unsigned)g_wav_size, (unsigned)g_duration, g_chapter_idx);
-
+static bool post_chunk(const audio_chunk_t *chunk) {
     WiFiClientSecure client;
-    client.setInsecure();   // TODO: pin Supabase root CA in production
-    client.setTimeout(60);  // seconds — large uploads can be slow
+    client.setInsecure();
+    client.setTimeout(30);
 
     HTTPClient http;
-    http.setTimeout(60000);
-
-    // POST to the Edge Function. Body is the raw WAV; metadata in headers.
-    String url = String(SUPABASE_URL) + "/functions/v1/upload_recording";
+    http.setTimeout(30000);
+    String url = String(SUPABASE_URL) + "/functions/v1/upload_chunk";
     if (!http.begin(client, url)) {
         set_err("http.begin failed");
-        g_state = UPLOAD_FAILED;
-        g_task = nullptr;
-        vTaskDelete(NULL);
-        return;
+        return false;
     }
     http.addHeader("apikey",        SUPABASE_ANON_KEY);
     http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
-    http.addHeader("Content-Type",  "audio/wav");
+    http.addHeader("Content-Type",  "application/octet-stream");
     http.addHeader("x-hardware-id", pairing_get_device_id());
     http.addHeader("x-pair-token",  pairing_get_token_hex());
-    http.addHeader("x-acct",        pairing_get_account());
-    http.addHeader("x-duration",    String(g_duration));
-    http.addHeader("x-chapter",     String(g_chapter_idx));
-    http.addHeader("x-book-name",   book_get_name());
-    http.addHeader("x-chapter-name", book_get_chapter_name(g_chapter_idx) ?: "Chapter");
+    http.addHeader("x-session-id",  audio_record_session_id());
+    http.addHeader("x-chunk-idx",   String(chunk->idx));
 
-    int code = http.POST(const_cast<uint8_t *>(g_wav), g_wav_size);
-    if (code < 0) {
-        set_err(http.errorToString(code).c_str());
-        g_state = UPLOAD_FAILED;
-    } else if (code >= 200 && code < 300) {
-        String resp = http.getString();
-        Serial.printf("[upload] success HTTP %d: %s\n", code, resp.c_str());
-        g_progress = 100;
-        g_state    = UPLOAD_SUCCESS;
-    } else {
-        String resp = http.getString();
-        char msg[96];
-        snprintf(msg, sizeof(msg), "HTTP %d: %.60s", code, resp.c_str());
+    int code = http.POST(chunk->data, chunk->size);
+    bool ok = (code >= 200 && code < 300);
+    if (!ok) {
+        char msg[80];
+        if (code < 0) snprintf(msg, sizeof(msg), "chunk %u: %s", (unsigned)chunk->idx, http.errorToString(code).c_str());
+        else          snprintf(msg, sizeof(msg), "chunk %u: HTTP %d", (unsigned)chunk->idx, code);
         set_err(msg);
-        g_state = UPLOAD_FAILED;
+    } else {
+        Serial.printf("[upload] chunk %u OK (%u bytes)\n", (unsigned)chunk->idx, (unsigned)chunk->size);
     }
-
     http.end();
+    return ok;
+}
+
+static bool post_finalize(uint32_t duration, int chapter_idx) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    client.setTimeout(30);
+    HTTPClient http;
+    http.setTimeout(30000);
+    String url = String(SUPABASE_URL) + "/functions/v1/finalize_recording";
+    if (!http.begin(client, url)) return false;
+    http.addHeader("apikey",        SUPABASE_ANON_KEY);
+    http.addHeader("Authorization", String("Bearer ") + SUPABASE_ANON_KEY);
+    http.addHeader("Content-Type",  "application/json");
+    http.addHeader("x-hardware-id", pairing_get_device_id());
+    http.addHeader("x-pair-token",  pairing_get_token_hex());
+    http.addHeader("x-session-id",  audio_record_session_id());
+    http.addHeader("x-acct",        pairing_get_account());
+    http.addHeader("x-duration",    String(duration));
+    http.addHeader("x-chapter",     String(chapter_idx));
+    http.addHeader("x-book-name",   book_get_name());
+    const char *cn = book_get_chapter_name(chapter_idx);
+    http.addHeader("x-chapter-name", cn ? cn : "Chapter");
+
+    int code = http.POST("{}");
+    bool ok = (code >= 200 && code < 300);
+    if (ok) {
+        String resp = http.getString();
+        Serial.printf("[upload] finalize OK: %s\n", resp.c_str());
+    } else {
+        char m[64];
+        snprintf(m, sizeof(m), "finalize HTTP %d", code);
+        set_err(m);
+    }
+    http.end();
+    return ok;
+}
+
+static void upload_task(void *) {
+    Serial.println("[upload] task started");
+    while (g_running) {
+        if (WiFi.status() != WL_CONNECTED) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }
+
+        audio_chunk_t chunk;
+        if (audio_record_take_chunk(&chunk)) {
+            if (post_chunk(&chunk)) {
+                g_uploaded++;
+                audio_record_release_chunk(&chunk);
+            } else {
+                // Upload failed — give back the chunk for retry
+                audio_record_release_chunk(&chunk);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+            }
+            continue;
+        }
+
+        // No chunks to upload. If finalize was requested and capture is done, send it.
+        if (g_finalize_pending && audio_record_state() == AUDIO_STATE_FINALIZING) {
+            if (post_finalize(g_final_duration, g_final_chapter)) {
+                g_finalize_pending = false;
+                audio_record_mark_complete();
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(3000));   // retry finalize
+            }
+            continue;
+        }
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    Serial.println("[upload] task exiting");
     g_task = nullptr;
     vTaskDelete(NULL);
 }
 
-bool audio_upload_begin(const uint8_t *wav, size_t wav_size,
-                        uint32_t duration_sec, int chapter_idx) {
-    if (g_state == UPLOAD_RUNNING) {
-        Serial.println("[upload] already running");
-        return false;
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-        set_err("WiFi not connected");
-        g_state = UPLOAD_FAILED;
-        return false;
-    }
-    if (!wav || wav_size == 0) {
-        set_err("empty wav");
-        g_state = UPLOAD_FAILED;
-        return false;
-    }
-
-    g_wav         = wav;
-    g_wav_size    = wav_size;
-    g_duration    = duration_sec;
-    g_chapter_idx = chapter_idx;
-
+void audio_upload_begin(void) {
+    if (g_running) return;
+    g_running = true;
+    g_uploaded = 0;
+    g_err[0] = 0;
     xTaskCreatePinnedToCore(upload_task, "audio_up", 8192, NULL, 4, &g_task, 1);
-    return true;
 }
 
-upload_state_t audio_upload_state(void)            { return g_state; }
-uint8_t        audio_upload_progress_percent(void) { return g_progress; }
-const char    *audio_upload_last_error(void)       { return g_err; }
+void audio_upload_stop(void) {
+    g_running = false;
+}
+
+void audio_upload_request_finalize(uint32_t duration_sec, int chapter_idx) {
+    g_final_duration   = duration_sec;
+    g_final_chapter    = chapter_idx;
+    g_finalize_pending = true;
+    Serial.printf("[upload] finalize queued: %us, chapter %d\n",
+                  (unsigned)duration_sec, chapter_idx);
+}
+
+uint32_t    audio_upload_chunks_uploaded(void) { return g_uploaded; }
+const char *audio_upload_last_error(void)      { return g_err; }

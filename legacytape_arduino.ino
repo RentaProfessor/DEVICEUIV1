@@ -308,8 +308,10 @@ void setup() {
     // Screen4's cassette + Screen10's chapter list show real data.
     book_begin();
 
-    // Allocate the recording PSRAM buffer + unmute mic. Runs once at boot.
+    // Allocate the recording PSRAM buffers + unmute mic. Runs once at boot.
     audio_record_begin();
+    // Start the background chunk-upload task. Idle until audio_record produces chunks.
+    audio_upload_begin();
 
     // Initialize pairing token + persist it in NVS. Render a live QR code on
     // Screen1 encoding the pairing URL. iOS app scans this and uses BLE to
