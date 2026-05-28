@@ -85,8 +85,9 @@ void ui_Screen5_screen_init(void) {
                   "Stop",      s5_to_stopped);
     ltw_chapter_banner(ui_Screen5, "CHAPTER 03", "THE EARLY YEARS", s5_to_chapter, s5_to_book);
 
-    // Auto-start recording when the screen is entered
-    audio_record_reset();
+    // Auto-start recording when the screen is entered.
+    // audio_record_start() resets all internal state + generates a fresh
+    // session_id — no separate reset call needed (legacy API removed).
     if (audio_record_start()) {
         printf("[S5] mic capture started\n");
     } else {

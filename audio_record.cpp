@@ -224,6 +224,16 @@ void audio_record_force_stop_for_network(const char *reason) {
     g_state = AUDIO_STATE_ERROR;
 }
 
+// Called by audio_upload after the finalize POST succeeds (or is skipped for
+// an empty session) to advance state machine FINALIZING -> COMPLETE so the
+// UI can show "Uploaded" instead of "Uploading…".
+void audio_record_mark_complete(void) {
+    if (g_state == AUDIO_STATE_FINALIZING) {
+        g_state = AUDIO_STATE_COMPLETE;
+        Serial.println("[audio] recording fully uploaded + finalized");
+    }
+}
+
 // Pulled by audio_upload — return next READY chunk if any
 bool audio_record_take_chunk(audio_chunk_t *out) {
     int best = -1;
