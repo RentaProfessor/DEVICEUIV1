@@ -6,9 +6,9 @@ lv_obj_t *ui_Screen10 = NULL;
 
 static void s10_close(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
-    if (code == LV_EVENT_PRESSED)  Serial.println("[debug] S10 CANCEL pressed");
+    if (code == LV_EVENT_PRESSED)  printf("[debug] S10 CANCEL pressed\n");
     if (code == LV_EVENT_CLICKED) {
-        Serial.println("[debug] S10 CANCEL clicked -> Screen4");
+        printf("[debug] S10 CANCEL clicked -> Screen4\n");
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
     }
 }

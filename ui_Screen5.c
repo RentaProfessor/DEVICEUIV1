@@ -22,7 +22,7 @@ static void s5_to_book(lv_event_t *e) {
 // it will show upload progress as the last chunks land.
 static void s5_to_stopped(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    Serial.println("[S5] STOP pressed — finalizing");
+    printf("[S5] STOP pressed - finalizing\n");
     uint32_t secs = audio_record_seconds();
     audio_upload_request_finalize(secs, book_get_active_chapter());
     audio_record_stop();
@@ -88,9 +88,9 @@ void ui_Screen5_screen_init(void) {
     // Auto-start recording when the screen is entered
     audio_record_reset();
     if (audio_record_start()) {
-        Serial.println("[S5] mic capture started");
+        printf("[S5] mic capture started\n");
     } else {
-        Serial.println("[S5] mic capture failed to start");
+        printf("[S5] mic capture failed to start\n");
     }
     if (!s5_ticker) s5_ticker = lv_timer_create(s5_tick, 200, NULL);
 }

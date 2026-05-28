@@ -6,7 +6,7 @@ lv_obj_t *ui_Screen8 = NULL;
 
 static void s8_close(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED) {
-        Serial.println("[debug] S8 CANCEL -> Screen4");
+        printf("[debug] S8 CANCEL -> Screen4\n");
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
     }
 }
