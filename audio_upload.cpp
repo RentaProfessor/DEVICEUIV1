@@ -97,10 +97,22 @@ static bool post_finalize(uint32_t duration, int chapter_idx) {
     return ok;
 }
 
+// Network-failure threshold: after this many consecutive failures while
+// recording is active, force-stop capture and surface the error on screen.
+// At 2 s between retries this is ~30 s of trying before we give up.
+#define UPLOAD_FAILURE_LIMIT 15
+
 static void upload_task(void *) {
     Serial.println("[upload] task started");
+    uint32_t consecutive_failures = 0;
+
     while (g_running) {
         if (WiFi.status() != WL_CONNECTED) {
+            consecutive_failures++;
+            if (audio_record_state() == AUDIO_STATE_RECORDING && consecutive_failures >= UPLOAD_FAILURE_LIMIT) {
+                audio_record_force_stop_for_network("WiFi disconnected");
+                consecutive_failures = 0;
+            }
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
@@ -109,18 +121,29 @@ static void upload_task(void *) {
         if (audio_record_take_chunk(&chunk)) {
             if (post_chunk(&chunk)) {
                 g_uploaded++;
+                consecutive_failures = 0;
                 audio_record_release_chunk(&chunk);
             } else {
-                // Upload failed — give back the chunk for retry
+                consecutive_failures++;
                 audio_record_release_chunk(&chunk);
+                if (audio_record_state() == AUDIO_STATE_RECORDING && consecutive_failures >= UPLOAD_FAILURE_LIMIT) {
+                    audio_record_force_stop_for_network("upload failures exceeded threshold");
+                    consecutive_failures = 0;
+                }
                 vTaskDelay(pdMS_TO_TICKS(2000));
             }
             continue;
         }
 
-        // No chunks to upload. If finalize was requested and capture is done, send it.
+        // No chunks pending. Send finalize if capture is done AND we actually
+        // uploaded something. Don't finalize an empty session — leave it for
+        // server-side janitor cleanup.
         if (g_finalize_pending && audio_record_state() == AUDIO_STATE_FINALIZING) {
-            if (post_finalize(g_final_duration, g_final_chapter)) {
+            if (g_uploaded == 0) {
+                Serial.println("[upload] skipping finalize: no chunks were uploaded");
+                g_finalize_pending = false;
+                audio_record_mark_complete();   // advance state so UI doesn't hang
+            } else if (post_finalize(g_final_duration, g_final_chapter)) {
                 g_finalize_pending = false;
                 audio_record_mark_complete();
             } else {
@@ -128,6 +151,12 @@ static void upload_task(void *) {
             }
             continue;
         }
+
+        // If state is ERROR, give up cleanly — don't try to finalize a force-stopped session
+        if (audio_record_state() == AUDIO_STATE_ERROR) {
+            g_finalize_pending = false;
+        }
+
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     Serial.println("[upload] task exiting");

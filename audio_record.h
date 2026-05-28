@@ -49,6 +49,14 @@ uint32_t       audio_record_seconds(void);            // total captured time
 uint8_t        audio_record_level_percent(void);      // 0..100 for VU meter
 const char    *audio_record_session_id(void);         // current/last session UUID
 uint32_t       audio_record_chunks_captured(void);    // sequential ID of next chunk
+const char    *audio_record_last_error(void);         // human-readable, "" if none
+
+// Network-failure abort path. Called by audio_upload after N consecutive upload
+// failures (i.e. WiFi is gone and isn't coming back). Sets state to ERROR,
+// records the reason, and tells capture_task to exit immediately without
+// queuing the partial buffer. The UI consumes audio_record_last_error() to
+// surface the failure on Screen6.
+void audio_record_force_stop_for_network(const char *reason);
 
 // ─── Internal API used by audio_upload only ───
 // Get the next ready-to-upload chunk. Caller must release it. Returns false

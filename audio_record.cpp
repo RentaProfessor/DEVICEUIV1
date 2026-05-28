@@ -34,6 +34,7 @@ static volatile uint8_t  g_level = 0;
 static volatile uint32_t g_chunks_captured = 0;
 static volatile uint32_t g_total_pcm_bytes = 0;
 static char        g_session_id[33] = {0};
+static char        g_last_error[96]  = {0};
 static TaskHandle_t g_task = nullptr;
 
 static const char *hex = "0123456789abcdef";
@@ -70,6 +71,20 @@ static void update_level(const uint8_t *buf, size_t n) {
 
 static void capture_task(void *) {
     Serial.println("[audio] capture task started");
+
+    // PDM mic warmup gap: the first ~500 ms after i2s.begin() in PDM mode
+    // contains DC offset / saturation glitches that confuse Whisper.
+    // Drain and discard before chunk 0 starts filling.
+    const size_t WARMUP_BYTES = AUDIO_SAMPLE_RATE * 2 / 2;   // 0.5 s = 16 KB
+    uint8_t discard[2048];
+    size_t drained = 0;
+    while (drained < WARMUP_BYTES && g_state == AUDIO_STATE_RECORDING) {
+        size_t got = g_i2s.readBytes((char *)discard, sizeof(discard));
+        drained += got;
+        vTaskDelay(1);
+    }
+    Serial.printf("[audio] PDM warmup drained %u bytes\n", (unsigned)drained);
+
     // First chunk gets BUF_FILLING
     g_bufs[g_active_idx].used  = 0;
     g_bufs[g_active_idx].state = BUF_FILLING;
@@ -198,6 +213,16 @@ uint32_t       audio_record_seconds(void)           { return g_total_pcm_bytes /
 uint8_t        audio_record_level_percent(void)     { return g_level; }
 const char    *audio_record_session_id(void)        { return g_session_id; }
 uint32_t       audio_record_chunks_captured(void)   { return g_chunks_captured; }
+const char    *audio_record_last_error(void)        { return g_last_error; }
+
+void audio_record_force_stop_for_network(const char *reason) {
+    if (g_state != AUDIO_STATE_RECORDING) return;
+    strncpy(g_last_error, reason ? reason : "network failure", sizeof(g_last_error) - 1);
+    g_last_error[sizeof(g_last_error) - 1] = 0;
+    Serial.printf("[audio] FORCE STOP: %s\n", g_last_error);
+    // Mark ERROR so capture_task exits its loop AND skips queuing partial chunk
+    g_state = AUDIO_STATE_ERROR;
+}
 
 // Pulled by audio_upload — return next READY chunk if any
 bool audio_record_take_chunk(audio_chunk_t *out) {
