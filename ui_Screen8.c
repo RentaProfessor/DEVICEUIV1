@@ -73,7 +73,7 @@ void ui_Screen8_screen_init(void) {
         lv_obj_set_width(t, 248);
         lv_label_set_text(t, book_get_name());
         lv_obj_set_style_text_color(t, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(t, &ui_font_archivo_32, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_text_font(t, &ui_font_archivo_42, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
 
         // Chapter count summary
