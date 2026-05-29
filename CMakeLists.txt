@@ -8,6 +8,7 @@ SET(SOURCES ui_comp_welcomelabel.c
     book.cpp
     audio_record.cpp
     audio_upload.cpp
+    audio_playback.cpp
     ui_Screen1.c
     ui_Screen2.c
     ui_Screen3.c
