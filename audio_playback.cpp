@@ -12,6 +12,7 @@
 #include <HTTPClient.h>
 #include <ESP_I2S.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -97,8 +98,8 @@ static int fetch_chapter(int chapter) {
     return 1;
 }
 
-// Stream one clip's WAV to the (already-open) I2S output. base_sec is the
-// global timeline offset of this clip's start, for the position readout.
+// Stream one clip's WAV to the (already-open, STEREO) I2S output. base_sec is
+// the global timeline offset of this clip's start, for the position readout.
 // Returns false if the user requested stop mid-clip.
 static bool stream_clip(const char *url, uint32_t base_sec) {
     WiFiClientSecure client;
@@ -121,29 +122,51 @@ static bool stream_clip(const char *url, uint32_t base_sec) {
         set_err(m); http.end(); return true;   // skip this clip, keep going
     }
 
-    WiFiClient *stream = http.getStreamPtr();
+    int content_len = http.getSize();   // -1 if chunked/unknown
+    Serial.printf("[playback] clip GET 200, content-length=%d\n", content_len);
 
-    // Skip 44-byte WAV header
-    uint8_t hdr[44]; int hr = 0;
-    while (hr < 44 && http.connected() && !g_stop_req) {
-        if (stream->available()) hr += stream->readBytes(hdr + hr, 44 - hr);
-        else vTaskDelay(1);
+    WiFiClient *stream = http.getStreamPtr();
+    stream->setTimeout(2000);            // blocking readBytes up to 2s
+
+    // Read the whole WAV header (44 bytes) — readBytes blocks until it has them
+    uint8_t hdr[44];
+    int hr = 0;
+    while (hr < 44 && !g_stop_req) {
+        int r = stream->readBytes(hdr + hr, 44 - hr);
+        if (r <= 0) { if (!stream->connected()) break; continue; }
+        hr += r;
     }
 
-    uint8_t buf[2048];
-    uint64_t played = 0;
+    // Mono PCM in -> duplicate each 16-bit sample to L+R for stereo I2S out.
+    // The MAX98357 needs audio on the channel(s) it reads; mono frames don't
+    // reach it reliably. This matches the factory playback path.
+    uint8_t  mono[1024];
+    int16_t  stereo[1024];               // 512 mono samples -> 512 L/R pairs
+    uint64_t played = 0;                 // PCM bytes consumed (mono)
     const uint64_t bps = PLAY_SAMPLE_RATE * 2;
-    uint32_t idle = 0;
-    while (http.connected() && !g_stop_req) {
-        size_t avail = stream->available();
-        if (avail == 0) { if (++idle > 2000) break; vTaskDelay(1); continue; }
-        idle = 0;
-        size_t n = stream->readBytes(buf, avail > sizeof(buf) ? sizeof(buf) : avail);
-        if (n == 0) { vTaskDelay(1); continue; }
-        g_spk.write(buf, n);
+    int remaining = (content_len > 44) ? (content_len - 44) : -1;
+
+    while (!g_stop_req) {
+        int want = sizeof(mono);
+        if (remaining > 0 && remaining < want) want = remaining;
+        int n = stream->readBytes(mono, want);
+        if (n <= 0) {
+            if (!stream->connected() && stream->available() == 0) break;  // EOF
+            continue;
+        }
+        // Expand mono16 -> stereo16
+        int samples = n / 2;
+        for (int i = 0; i < samples; i++) {
+            int16_t s = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
+            stereo[i * 2]     = s;
+            stereo[i * 2 + 1] = s;
+        }
+        g_spk.write((uint8_t *)stereo, samples * 4);   // 2 ch * 2 bytes
         played += n;
+        if (remaining > 0) { remaining -= n; if (remaining <= 0) break; }
         g_pos_sec = base_sec + (uint32_t)(played / bps);
     }
+    Serial.printf("[playback] clip done: %llu PCM bytes\n", (unsigned long long)played);
     http.end();
     return !g_stop_req;
 }
@@ -158,8 +181,18 @@ static void playback_task(void *) {
     if (r < 0)  { g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return; }
 
     // Open I2S output once for the whole chapter (all clips share the format).
+    // STEREO out: we duplicate the mono recording into both channels so the
+    // MAX98357 amp gets audio regardless of which channel it reads. (Matches
+    // the factory playback path — mono frames didn't reach the amp.)
+    // Unmute the panel audio path (STC8H1K28 µC @ 0x30) in case the SPK port
+    // routes through the onboard amp, which boots muted. Restore backlight
+    // brightness right after (the 0x30 µC also controls it).
+    Wire.beginTransmission(0x30); Wire.write((uint8_t)0x00); Wire.write((uint8_t)0x17); Wire.endTransmission();
+    delay(10);
+    Wire.beginTransmission(0x30); Wire.write((uint8_t)0x10); Wire.endTransmission();
+
     g_spk.setPins(SPK_BCLK, SPK_LRC, SPK_DOUT);
-    if (!g_spk.begin(I2S_MODE_STD, PLAY_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    if (!g_spk.begin(I2S_MODE_STD, PLAY_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
         set_err("I2S output begin failed");
         g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return;
     }
