@@ -38,9 +38,7 @@ static BLECharacteristic *g_status_char   = nullptr;
 static BLECharacteristic *g_wifilist_char = nullptr;
 static volatile bool      g_client_connected = false;
 static bool               g_wifi_scan_published = false;
-static bool               g_scan_active   = false;   // an async scan is in flight
-static uint32_t           g_scan_start_ms = 0;
-#define SCAN_TIMEOUT_MS   5000                        // publish empty if no result by then
+static volatile bool      g_scan_requested = false;   // a callback asked for a scan
 // True while wifi_try() is mid-connect. Main loop checks this and skips
 // lv_timer_handler() so the RGB panel DMA doesn't fight WiFi's PSRAM use.
 static volatile bool      g_busy = false;
@@ -58,19 +56,18 @@ static void notify_status(uint8_t code) {
 }
 
 // ─── WiFi list characteristic ───────────────────────────────────────────────
-// Kick off an async 2.4GHz scan. The ESP32-S3 radio is 2.4GHz-only, so the
-// results are inherently 2.4GHz networks the device can actually join — no
-// 5GHz filtering needed (it physically can't see them).
-static void start_wifi_scan() {
-    Serial.println("[ble] starting WiFi scan");
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect(false, false);      // ensure not associated, so scan is clean
-    WiFi.scanDelete();                  // drop any stale prior results
-    WiFi.scanNetworks(true /*async*/, false /*hidden*/);
-    g_scan_active = true;
+// Request a scan. The actual scan runs synchronously in pairing_ble_loop
+// (main-loop context) — NOT here, because callbacks run in the BLE task and a
+// blocking scan there would stall the BLE stack. Async scans proved unreliable
+// while a BLE connection is active (the scan-done callback often never fires
+// under radio coexistence), which is why reads were returning the empty [].
+static void request_wifi_scan() {
+    g_scan_requested = true;
     g_wifi_scan_published = false;
-    g_scan_start_ms = millis();
 }
+
+// ESP32-S3 radio is 2.4GHz-only, so scan results are inherently networks the
+// device can join — no 5GHz filtering needed (it can't see them).
 
 // Build + publish the network list to char 0x0004. Called when the async scan
 // completes (n>=0) OR on timeout/failure (publishes an EMPTY array so the app
@@ -123,7 +120,6 @@ static void publish_wifi_list(int n) {
                   kept, n < 0 ? 0 : n, (unsigned)len);
 
     g_wifi_scan_published = true;
-    g_scan_active = false;
     WiFi.scanDelete();
 }
 
@@ -261,8 +257,8 @@ class WifiListCharCallbacks : public BLECharacteristicCallbacks {
         // scan (covers the app's "Rescan" which re-reads this characteristic).
         // The current value is returned now; the fresh list is notify'd when
         // the scan completes.
-        if (!g_scan_active && !g_wifi_scan_published) {
-            start_wifi_scan();
+        if (!g_wifi_scan_published) {
+            request_wifi_scan();
         }
     }
 };
@@ -281,10 +277,11 @@ class ServerCallbacks : public BLEServerCallbacks {
         Serial.println("[ble] client connected (LVGL suspended)");
 
         // The iOS app now DEPENDS on the BLE scan list (no manual SSID entry).
-        // Kick off a fresh 2.4GHz scan on every connect so the picker is
+        // Request a fresh 2.4GHz scan on every connect so the picker is
         // populated, and a reconnect ('Rescan' in the app) re-scans for newly
-        // powered-on routers. Result is notify'd to 0x0004 when it completes.
-        start_wifi_scan();
+        // powered-on routers. The scan runs in pairing_ble_loop (main loop),
+        // result notify'd + stored to 0x0004 when done.
+        request_wifi_scan();
     }
     void onDisconnect(BLEServer *srv) override {
         g_client_connected = false;
@@ -363,17 +360,22 @@ void pairing_ble_stop(void) {
     }
 }
 
-// Called from main loop — publishes WiFi scan results when the async scan
-// finishes, or an empty list on timeout so the app never hangs on a spinner.
+// Called from main loop. Runs a SYNCHRONOUS WiFi scan when one was requested.
+// Synchronous is far more reliable than async while BLE is connected — the
+// async scan-done callback often never fires under radio coexistence, which
+// left the characteristic empty. Blocking here (~2-4s) is safe: LVGL is
+// already suspended during pairing (g_busy) and BLE runs on its own task, so
+// blocking the main loop doesn't stall the BLE connection.
 void pairing_ble_loop(void) {
     if (!g_server) return;
-    if (!g_scan_active) return;
+    if (!g_scan_requested) return;
+    g_scan_requested = false;
 
-    int n = WiFi.scanComplete();   // >=0 done, -1 running, -2 not started/failed
-    if (n >= 0) {
-        publish_wifi_list(n);                       // includes empty (n==0)
-    } else if (millis() - g_scan_start_ms > SCAN_TIMEOUT_MS) {
-        Serial.println("[ble] scan timed out — publishing empty list");
-        publish_wifi_list(0);                       // empty array, not silence
-    }
+    Serial.println("[ble] running synchronous WiFi scan...");
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, false);
+    WiFi.scanDelete();
+    int n = WiFi.scanNetworks(false /*sync*/, false /*show hidden*/);  // blocks until done
+    Serial.printf("[ble] scan complete: %d network(s)\n", n);
+    publish_wifi_list(n);   // n<=0 publishes empty [] — never silent
 }
