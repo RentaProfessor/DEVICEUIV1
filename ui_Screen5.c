@@ -78,8 +78,10 @@ void ui_Screen5_screen_init(void) {
     lv_obj_set_style_bg_opa(ui_Screen5, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ltw_topbar(ui_Screen5, LT_RED, "RECORDING", "00:00:00", &ui_S5_PilotLamp, NULL, &ui_S5_Timer);
+    // Pulse the red RECORDING lamp — clear "we're live" animation
+    ltw_pulse_lamp(ui_S5_PilotLamp, 1100);
 
-    ltw_cassette(ui_Screen5, 620, 200, -36, book_get_name(), "REC");
+    ltw_cassette(ui_Screen5, 620, 200, -36, book_get_name(), NULL);
 
     // Segmented VU meter — VU_SEGMENTS discrete bars, lit live by s5_tick.
     lv_obj_t *vu_track = lv_obj_create(ui_Screen5);
@@ -136,6 +138,9 @@ void ui_Screen5_screen_init(void) {
 
 void ui_Screen5_screen_destroy(void) {
     if (s5_ticker) { lv_timer_del(s5_ticker); s5_ticker = NULL; }
+    // Stop the lamp pulse before the object is freed so the anim doesn't
+    // fire its callback on a dangling pointer.
+    ltw_stop_lamp_pulse(ui_S5_PilotLamp);
     if (ui_Screen5) lv_obj_del(ui_Screen5);
     ui_Screen5 = NULL; ui_S5_Timer = NULL; ui_S5_PilotLamp = NULL;
     for (int i = 0; i < VU_SEGMENTS; i++) s5_segs[i] = NULL;

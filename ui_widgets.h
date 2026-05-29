@@ -70,6 +70,11 @@ void ltw_picker_header(lv_obj_t *parent,
                        const char *close_label,
                        lv_event_cb_t on_close);
 
+// Pulse a pilot lamp's opacity 255<->70 forever (period_ms full cycle).
+// Use for the RECORDING red lamp + READY amber lamp. Cancel with stop.
+void ltw_pulse_lamp(lv_obj_t *lamp, uint32_t period_ms);
+void ltw_stop_lamp_pulse(lv_obj_t *lamp);
+
 #ifdef __cplusplus
 }
 #endif

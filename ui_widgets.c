@@ -190,42 +190,39 @@ lv_obj_t *ltw_cassette(lv_obj_t *parent, int w, int h, int y_offset,
         lv_obj_set_style_pad_all(reel, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     }
 
-    // VU meter on right side of cassette stage
-    if (vu_tag) {
-        lv_obj_t *vu = lv_obj_create(parent);
-        lv_obj_set_size(vu, 50, 230);
-        lv_obj_set_pos(vu, 740, 130);
-        lv_obj_clear_flag(vu, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(vu, lv_color_hex(0x1A1410), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(vu, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(vu, lv_color_hex(LT_RULE), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(vu, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(vu, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(vu, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_t *tag = lv_label_create(vu);
-        lv_obj_align(tag, LV_ALIGN_TOP_MID, 0, 0);
-        lv_label_set_text(tag, vu_tag);
-        lv_obj_set_style_text_color(tag, lv_color_hex(LT_ACCENT), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(tag, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
-        // 12 stacked LED segments (simplified from 18 for clarity at this size)
-        for (int i = 0; i < 12; i++) {
-            lv_obj_t *seg = lv_obj_create(vu);
-            lv_obj_set_size(seg, 24, 13);
-            lv_obj_set_pos(seg, 7, 28 + i * 15);
-            lv_obj_clear_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
-            uint32_t segC;
-            // Default level shows ~67%: top 4 dark, next 2 amber, bottom 6 green
-            if (i < 2)      segC = 0x180E08;            // off (peak)
-            else if (i < 4) segC = LT_AMBER;
-            else            segC = LT_GREEN;
-            lv_obj_set_style_bg_color(seg, lv_color_hex(segC), LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_bg_opa(seg, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_radius(seg, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-            lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-        }
-    }
+    // NOTE: This widget used to draw a hardcoded 12-segment "VU meter" with
+    // fake static green/amber levels whenever vu_tag was set. That was pure
+    // placeholder filler — it never reflected real audio. Removed. Screens that
+    // need a live meter (Screen5 Recording) build their own real segmented VU
+    // driven by audio_record_level_percent(). The vu_tag param is kept for
+    // source compatibility but no longer renders anything.
+    (void)vu_tag;
     return cass;
+}
+
+// ─── Pulsing pilot lamp animation ───────────────────────────────────────────
+static void lamp_opa_anim_cb(void *obj, int32_t v) {
+    lv_obj_set_style_bg_opa((lv_obj_t *)obj, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+void ltw_pulse_lamp(lv_obj_t *lamp, uint32_t period_ms) {
+    if (!lamp) return;
+    lv_anim_del(lamp, lamp_opa_anim_cb);    // cancel any prior pulse on this lamp
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, lamp);
+    lv_anim_set_exec_cb(&a, lamp_opa_anim_cb);
+    lv_anim_set_values(&a, 255, 70);
+    lv_anim_set_time(&a, period_ms / 2);
+    lv_anim_set_playback_time(&a, period_ms / 2);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&a);
+}
+
+void ltw_stop_lamp_pulse(lv_obj_t *lamp) {
+    if (!lamp) return;
+    lv_anim_del(lamp, lamp_opa_anim_cb);
+    lv_obj_set_style_bg_opa(lamp, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
 void ltw_picker_header(lv_obj_t *parent,
