@@ -38,6 +38,9 @@ static BLECharacteristic *g_status_char   = nullptr;
 static BLECharacteristic *g_wifilist_char = nullptr;
 static volatile bool      g_client_connected = false;
 static bool               g_wifi_scan_published = false;
+static bool               g_scan_active   = false;   // an async scan is in flight
+static uint32_t           g_scan_start_ms = 0;
+#define SCAN_TIMEOUT_MS   5000                        // publish empty if no result by then
 // True while wifi_try() is mid-connect. Main loop checks this and skips
 // lv_timer_handler() so the RGB panel DMA doesn't fight WiFi's PSRAM use.
 static volatile bool      g_busy = false;
@@ -55,28 +58,47 @@ static void notify_status(uint8_t code) {
 }
 
 // ─── WiFi list characteristic ───────────────────────────────────────────────
-// Builds the JSON array of nearby networks and publishes it to characteristic 0x0004.
-static void publish_wifi_list() {
-    int n = WiFi.scanComplete();
-    if (n < 0) return;   // scan not done yet or no scan was started
+// Kick off an async 2.4GHz scan. The ESP32-S3 radio is 2.4GHz-only, so the
+// results are inherently 2.4GHz networks the device can actually join — no
+// 5GHz filtering needed (it physically can't see them).
+static void start_wifi_scan() {
+    Serial.println("[ble] starting WiFi scan");
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(false, false);      // ensure not associated, so scan is clean
+    WiFi.scanDelete();                  // drop any stale prior results
+    WiFi.scanNetworks(true /*async*/, false /*hidden*/);
+    g_scan_active = true;
+    g_wifi_scan_published = false;
+    g_scan_start_ms = millis();
+}
 
+// Build + publish the network list to char 0x0004. Called when the async scan
+// completes (n>=0) OR on timeout/failure (publishes an EMPTY array so the app
+// can distinguish "no networks" from "scan broken" — it must never go silent).
+static void publish_wifi_list(int n) {
     StaticJsonDocument<2048> doc;
     JsonArray arr = doc.to<JsonArray>();
-    int max_n = (n > 20) ? 20 : n;   // cap at 20 networks to keep payload reasonable
-    for (int i = 0; i < max_n; i++) {
-        JsonObject net = arr.createNestedObject();
-        net["ssid"] = WiFi.SSID(i);
-        net["rssi"] = WiFi.RSSI(i);
+    if (n > 0) {
+        int max_n = (n > 24) ? 24 : n;   // cap payload
+        for (int i = 0; i < max_n; i++) {
+            String ssid = WiFi.SSID(i);
+            if (ssid.length() == 0) continue;     // skip hidden/blank
+            JsonObject net = arr.createNestedObject();
+            net["ssid"] = ssid;
+            net["rssi"] = WiFi.RSSI(i);            // app sorts by RSSI + de-dupes
+        }
     }
     char buf[2048];
     size_t len = serializeJson(doc, buf, sizeof(buf));
-
     if (g_wifilist_char) {
         g_wifilist_char->setValue((uint8_t *)buf, len);
         g_wifilist_char->notify();
     }
-    Serial.printf("[ble] published %d WiFi networks to char 0x0004 (%u bytes)\n", n, (unsigned)len);
+    Serial.printf("[ble] published %d network(s) to 0x0004 (%u bytes)\n", n < 0 ? 0 : n, (unsigned)len);
+
     g_wifi_scan_published = true;
+    g_scan_active = false;
+    WiFi.scanDelete();
 }
 
 // ─── WiFi credentials handler ───────────────────────────────────────────────
@@ -208,11 +230,14 @@ class PairCharCallbacks : public BLECharacteristicCallbacks {
 class WifiListCharCallbacks : public BLECharacteristicCallbacks {
     void onRead(BLECharacteristic *chr) override {
         Serial.println("[ble] wifi list char read");
-        // If the scan completed since last read, refresh the value
-        if (!g_wifi_scan_published && WiFi.scanComplete() >= 0) {
-            publish_wifi_list();
+        // The app reads this after connecting to populate its picker. If no
+        // scan is running and we haven't published a result yet, kick a fresh
+        // scan (covers the app's "Rescan" which re-reads this characteristic).
+        // The current value is returned now; the fresh list is notify'd when
+        // the scan completes.
+        if (!g_scan_active && !g_wifi_scan_published) {
+            start_wifi_scan();
         }
-        // Whatever's in the characteristic value gets returned automatically
     }
 };
 
@@ -228,6 +253,12 @@ class ServerCallbacks : public BLEServerCallbacks {
         g_busy = true;
         g_busy_since = millis();
         Serial.println("[ble] client connected (LVGL suspended)");
+
+        // The iOS app now DEPENDS on the BLE scan list (no manual SSID entry).
+        // Kick off a fresh 2.4GHz scan on every connect so the picker is
+        // populated, and a reconnect ('Rescan' in the app) re-scans for newly
+        // powered-on routers. Result is notify'd to 0x0004 when it completes.
+        start_wifi_scan();
     }
     void onDisconnect(BLEServer *srv) override {
         g_client_connected = false;
@@ -306,11 +337,17 @@ void pairing_ble_stop(void) {
     }
 }
 
-// Called from main loop — publishes WiFi scan results when they arrive
+// Called from main loop — publishes WiFi scan results when the async scan
+// finishes, or an empty list on timeout so the app never hangs on a spinner.
 void pairing_ble_loop(void) {
     if (!g_server) return;
-    if (g_wifi_scan_published) return;
-    if (WiFi.scanComplete() >= 0) {
-        publish_wifi_list();
+    if (!g_scan_active) return;
+
+    int n = WiFi.scanComplete();   // >=0 done, -1 running, -2 not started/failed
+    if (n >= 0) {
+        publish_wifi_list(n);                       // includes empty (n==0)
+    } else if (millis() - g_scan_start_ms > SCAN_TIMEOUT_MS) {
+        Serial.println("[ble] scan timed out — publishing empty list");
+        publish_wifi_list(0);                       // empty array, not silence
     }
 }
