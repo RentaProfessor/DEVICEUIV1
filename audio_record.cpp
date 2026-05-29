@@ -259,11 +259,3 @@ void audio_record_release_chunk(const audio_chunk_t *chunk) {
     g_bufs[idx].used  = 0;
     g_bufs[idx].state = BUF_EMPTY;
 }
-
-// Called by upload module after finalize succeeds
-void audio_record_mark_complete(void) {
-    if (g_state == AUDIO_STATE_FINALIZING) {
-        g_state = AUDIO_STATE_COMPLETE;
-        Serial.println("[audio] recording fully uploaded + finalized");
-    }
-}
