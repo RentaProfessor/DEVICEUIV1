@@ -223,10 +223,6 @@ static void buttons_poll() {
 
 // ─── Onboarding nav glue (Screen1 → Screen2 → Screen3 → Screen4) ───────────
 // Wires the existing SquareLine screens without modifying the generated files.
-static void s1_advance(lv_event_t *e) {
-    if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0, &ui_Screen2_screen_init);
-}
 static void s3_kb_done(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
@@ -252,7 +248,10 @@ static void s2_button_debug(lv_event_t *e) {
 }
 
 static void wire_existing_screens() {
-    if (ui_Screen1) lv_obj_add_event_cb(ui_Screen1, s1_advance, LV_EVENT_CLICKED, NULL);
+    // NOTE: Screen1 used to have a "tap anywhere to advance" shortcut (s1_advance)
+    // for dev testing. Removed — it meant picking up the device registered a
+    // touch and walked it into onboarding. Screen1 now only advances via the
+    // real pairing flow (cloud onboarding_complete poll -> Screen2).
     if (ui_Screen3 && ui_Keyboard2) {
         lv_keyboard_set_textarea(ui_Keyboard2, ui_TextArea1);
         lv_obj_add_event_cb(ui_Keyboard2, s3_kb_done, LV_EVENT_ALL, NULL);
@@ -330,10 +329,17 @@ void setup() {
     // deliver WiFi credentials back to the device.
     pairing_begin();
 
-    // Start BLE advertising for the pairing service. No-op if already paired.
-    pairing_ble_begin();
+    if (pairing_is_complete()) {
+        // Device is already set up — skip the QR/pairing/onboarding flow
+        // entirely and boot straight to the Ready home screen. (This is why
+        // picking up a paired device used to walk into onboarding: it was
+        // still booting to Screen1 with a tap-to-advance shortcut.)
+        Serial.println("[LegacyTape] already paired -> booting to Ready (Screen4)");
+        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+    } else if (ui_Screen1) {
+        // First-time setup: advertise the BLE pairing service + render the QR.
+        pairing_ble_begin();
 
-    if (ui_Screen1) {
         // Hide the static QR-card placeholder image — we draw our own card + QR.
         if (ui_Image1) lv_obj_add_flag(ui_Image1, LV_OBJ_FLAG_HIDDEN);
 
