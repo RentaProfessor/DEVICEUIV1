@@ -276,6 +276,12 @@ void pairing_ble_begin(void) {
 
 void pairing_ble_stop(void) {
     Serial.println("[ble] stopping BLE stack");
+    // Force-clear the LVGL-suspend flag BEFORE deinit. onDisconnect would
+    // normally clear it, but BLEDevice::deinit(true) tears down the stack
+    // without firing the disconnect callback, leaving g_busy stuck true
+    // and LVGL frozen — every touch ignored — until next reboot.
+    g_busy = false;
+    g_client_connected = false;
     if (g_server) {
         BLEDevice::stopAdvertising();
         BLEDevice::deinit(true);
