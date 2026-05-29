@@ -75,26 +75,52 @@ static void start_wifi_scan() {
 // Build + publish the network list to char 0x0004. Called when the async scan
 // completes (n>=0) OR on timeout/failure (publishes an EMPTY array so the app
 // can distinguish "no networks" from "scan broken" — it must never go silent).
+// A BLE characteristic value maxes at 512 bytes (ATT), and a single notify is
+// capped at ATT_MTU-3. We keep the published JSON under ~480 bytes so a full
+// readValue (iOS reassembles reads to 512B) returns the COMPLETE list. We add
+// the STRONGEST networks first (sorted by RSSI) and stop before the size cap,
+// so the cap only ever drops weak networks the user wouldn't pick.
+#define WIFI_JSON_MAX 480
+
 static void publish_wifi_list(int n) {
-    StaticJsonDocument<2048> doc;
+    StaticJsonDocument<1024> doc;
     JsonArray arr = doc.to<JsonArray>();
+    int kept = 0;
+
     if (n > 0) {
-        int max_n = (n > 24) ? 24 : n;   // cap payload
-        for (int i = 0; i < max_n; i++) {
-            String ssid = WiFi.SSID(i);
-            if (ssid.length() == 0) continue;     // skip hidden/blank
+        // Sort scan indices by RSSI descending (simple selection — n is small)
+        int order[40];
+        int cnt = (n > 40) ? 40 : n;
+        for (int i = 0; i < cnt; i++) order[i] = i;
+        for (int i = 0; i < cnt - 1; i++) {
+            int best = i;
+            for (int j = i + 1; j < cnt; j++)
+                if (WiFi.RSSI(order[j]) > WiFi.RSSI(order[best])) best = j;
+            int tmp = order[i]; order[i] = order[best]; order[best] = tmp;
+        }
+        for (int k = 0; k < cnt; k++) {
+            String ssid = WiFi.SSID(order[k]);
+            if (ssid.length() == 0) continue;          // skip hidden/blank
             JsonObject net = arr.createNestedObject();
             net["ssid"] = ssid;
-            net["rssi"] = WiFi.RSSI(i);            // app sorts by RSSI + de-dupes
+            net["rssi"] = WiFi.RSSI(order[k]);
+            // Stop before we exceed the readable-attribute size budget
+            if (measureJson(doc) > WIFI_JSON_MAX) {
+                arr.remove(arr.size() - 1);            // drop the one that overflowed
+                break;
+            }
+            kept++;
         }
     }
-    char buf[2048];
+
+    char buf[512];
     size_t len = serializeJson(doc, buf, sizeof(buf));
     if (g_wifilist_char) {
         g_wifilist_char->setValue((uint8_t *)buf, len);
         g_wifilist_char->notify();
     }
-    Serial.printf("[ble] published %d network(s) to 0x0004 (%u bytes)\n", n < 0 ? 0 : n, (unsigned)len);
+    Serial.printf("[ble] published %d of %d network(s) to 0x0004 (%u bytes, fits 512 read)\n",
+                  kept, n < 0 ? 0 : n, (unsigned)len);
 
     g_wifi_scan_published = true;
     g_scan_active = false;
