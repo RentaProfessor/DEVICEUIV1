@@ -144,7 +144,11 @@ static void upload_task(void *) {
         // server-side janitor cleanup.
         if (g_finalize_pending && audio_record_state() == AUDIO_STATE_FINALIZING) {
             if (g_uploaded == 0) {
-                Serial.println("[upload] skipping finalize: no chunks were uploaded");
+                // Nothing reached the cloud. This is a FAILURE, not success —
+                // don't let the UI claim "Uploaded." Set an error the Screen6
+                // status surfaces. Most common cause: WiFi wasn't connected.
+                Serial.println("[upload] FAILED: 0 chunks uploaded (WiFi down?)");
+                if (g_err[0] == 0) set_err("Nothing uploaded - check WiFi");
                 g_finalize_pending = false;
                 audio_record_mark_complete();   // advance state so UI doesn't hang
             } else if (post_finalize(g_final_duration, g_final_chapter)) {
@@ -194,3 +198,12 @@ void audio_upload_request_finalize(uint32_t duration_sec, int chapter_idx) {
 
 uint32_t    audio_upload_chunks_uploaded(void) { return g_uploaded; }
 const char *audio_upload_last_error(void)      { return g_err; }
+
+// Reset per-recording counters. Called when a new recording starts so the
+// uploaded-count + error from the previous take don't leak into this one
+// (the g_uploaded==0 'nothing uploaded' check depends on a fresh count).
+void audio_upload_reset(void) {
+    g_uploaded = 0;
+    g_err[0] = 0;
+    g_finalize_pending = false;
+}

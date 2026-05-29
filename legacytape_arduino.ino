@@ -27,6 +27,7 @@
 #include "LovyanGFX_Driver.h"
 #include <lvgl.h>
 #include <Wire.h>
+#include <WiFi.h>
 #include "ui.h"
 #include "pins_config.h"
 #include "pairing.h"
@@ -331,10 +332,40 @@ void setup() {
 
     if (pairing_is_complete()) {
         // Device is already set up — skip the QR/pairing/onboarding flow
-        // entirely and boot straight to the Ready home screen. (This is why
-        // picking up a paired device used to walk into onboarding: it was
-        // still booting to Screen1 with a tap-to-advance shortcut.)
+        // entirely and boot straight to the Ready home screen.
         Serial.println("[LegacyTape] already paired -> booting to Ready (Screen4)");
+
+        // CRITICAL: reconnect to WiFi using the credentials stored at pairing.
+        // WiFi used to come up during the BLE pairing flow; a paired device
+        // that boots straight to Ready never went through that, so it had no
+        // internet — recordings captured but every chunk upload silently
+        // failed and the device falsely reported "Uploaded". Reconnect here
+        // (async; upload/playback/sync all wait for WL_CONNECTED).
+        const char *ssid  = pairing_get_wifi_ssid();
+        const char *pw    = pairing_get_wifi_pw();
+        const char *ssid2 = pairing_get_wifi_ssid2();
+        const char *pw2   = pairing_get_wifi_pw2();
+        if (strlen(ssid) > 0) {
+            WiFi.mode(WIFI_STA);
+            WiFi.begin(ssid, pw);
+            Serial.printf("[LegacyTape] reconnecting WiFi '%s' (secondary '%s' avail: %s)\n",
+                          ssid, ssid2, strlen(ssid2) > 0 ? "yes" : "no");
+            // Brief blocking wait so a record-immediately-on-boot still uploads;
+            // fall back to secondary network if primary doesn't come up.
+            uint32_t t0 = millis();
+            while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) { delay(100); }
+            if (WiFi.status() != WL_CONNECTED && strlen(ssid2) > 0) {
+                Serial.println("[LegacyTape] primary WiFi failed, trying secondary");
+                WiFi.begin(ssid2, pw2);
+                t0 = millis();
+                while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) { delay(100); }
+            }
+            Serial.printf("[LegacyTape] WiFi %s\n",
+                          WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "NOT connected");
+        } else {
+            Serial.println("[LegacyTape] WARNING: paired but no stored WiFi SSID");
+        }
+
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
     } else if (ui_Screen1) {
         // First-time setup: advertise the BLE pairing service + render the QR.

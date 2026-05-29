@@ -20,6 +20,9 @@ void audio_upload_stop(void);
 uint32_t    audio_upload_chunks_uploaded(void);   // count of successful chunk POSTs
 const char *audio_upload_last_error(void);
 
+// Reset per-recording upload counters + error. Call when a new recording starts.
+void        audio_upload_reset(void);
+
 // Called by audio_record when it stops capturing so finalize can run
 void audio_upload_request_finalize(uint32_t duration_sec, int chapter_idx);
 

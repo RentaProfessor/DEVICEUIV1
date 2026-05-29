@@ -76,7 +76,12 @@ static void update_level(const uint8_t *buf, size_t n) {
         int16_t a = s < 0 ? -s : s;
         if (a > peak) peak = a;
     }
-    g_level = (uint8_t)((uint32_t)peak * 100 / 32768);
+    // Normal speech peaks well below full-scale, so a raw peak/32768 barely
+    // moves the meter. Reference against ~1/8 full-scale (4096) instead of
+    // 32768 -> 8x more sensitive, then clamp. Makes the VU lively for talking.
+    uint32_t pct = (uint32_t)peak * 100 / 4096;
+    if (pct > 100) pct = 100;
+    g_level = (uint8_t)pct;
 }
 
 static void capture_task(void *) {

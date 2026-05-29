@@ -46,8 +46,16 @@ static void s6_tick(lv_timer_t *t) {
             lv_label_set_text(ui_S6_StatusLabel, "Finalizing…");
         }
     } else if (st == AUDIO_STATE_COMPLETE) {
-        lv_label_set_text(ui_S6_StatusLabel, "Uploaded — transcribing on server");
-        if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 600);
+        // COMPLETE can mean "uploaded fine" OR "gave up with nothing uploaded".
+        // If there's an error string, the upload did NOT succeed — say so.
+        if (audio_upload_last_error()[0] != 0) {
+            snprintf(buf, sizeof(buf), "Not uploaded: %.60s", audio_upload_last_error());
+            lv_label_set_text(ui_S6_StatusLabel, buf);
+            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 0);
+        } else {
+            lv_label_set_text(ui_S6_StatusLabel, "Uploaded — transcribing on server");
+            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 600);
+        }
     } else if (audio_upload_last_error()[0] != 0) {
         snprintf(buf, sizeof(buf), "Issue: %.70s", audio_upload_last_error());
         lv_label_set_text(ui_S6_StatusLabel, buf);

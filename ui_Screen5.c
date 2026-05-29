@@ -126,8 +126,9 @@ void ui_Screen5_screen_init(void) {
     ltw_chapter_banner(ui_Screen5, chnum, acn ? acn : "Chapter 1", s5_to_chapter, s5_to_book);
 
     // Auto-start recording when the screen is entered.
-    // audio_record_start() resets all internal state + generates a fresh
-    // session_id — no separate reset call needed (legacy API removed).
+    // Reset the uploader's per-recording counters first so last take's
+    // uploaded-count/error don't leak into this session.
+    audio_upload_reset();
     if (audio_record_start()) {
         printf("[S5] mic capture started\n");
     } else {
