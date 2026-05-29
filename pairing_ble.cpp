@@ -41,6 +41,8 @@ static bool               g_wifi_scan_published = false;
 // True while wifi_try() is mid-connect. Main loop checks this and skips
 // lv_timer_handler() so the RGB panel DMA doesn't fight WiFi's PSRAM use.
 static volatile bool      g_busy = false;
+static uint32_t           g_busy_since = 0;     // millis() when g_busy went true
+#define BUSY_MAX_MS       90000                 // hard ceiling: never freeze >90s
 
 // ─── Status notifications ───────────────────────────────────────────────────
 static void notify_status(uint8_t code) {
@@ -119,7 +121,18 @@ static bool wifi_try(const char *ssid, const char *pw, uint32_t timeout_ms) {
     return false;
 }
 
-bool pairing_ble_is_busy(void) { return g_busy; }
+bool pairing_ble_is_busy(void) {
+    // Watchdog: g_busy should clear via onDisconnect or pairing_ble_stop. If
+    // any code path ever leaves it stuck (forced BLE deinit, dropped callback,
+    // etc.), self-heal after BUSY_MAX_MS so the UI can never be permanently
+    // frozen. The legitimate busy window (WiFi connect) is ~10s; the whole
+    // pairing session is well under 90s.
+    if (g_busy && g_busy_since != 0 && (millis() - g_busy_since) > BUSY_MAX_MS) {
+        Serial.println("[ble] g_busy watchdog tripped — force-clearing");
+        g_busy = false;
+    }
+    return g_busy;
+}
 
 // ─── BLE callbacks ──────────────────────────────────────────────────────────
 class PairCharCallbacks : public BLECharacteristicCallbacks {
@@ -213,6 +226,7 @@ class ServerCallbacks : public BLEServerCallbacks {
         // Phone-side user is staring at their phone the whole time, so the
         // frozen device screen isn't seen.
         g_busy = true;
+        g_busy_since = millis();
         Serial.println("[ble] client connected (LVGL suspended)");
     }
     void onDisconnect(BLEServer *srv) override {

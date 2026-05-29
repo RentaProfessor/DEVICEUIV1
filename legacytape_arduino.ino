@@ -188,7 +188,19 @@ static void on_button_pressed(uint8_t btn) {
 static void buttons_poll() {
     static uint8_t last_state = BTN_MASK;     // all high = nothing pressed
     static uint32_t last_change_ms = 0;
+    static uint32_t last_poll_ms = 0;
     const uint32_t DEBOUNCE_MS = 20;
+    const uint32_t POLL_INTERVAL_MS = 20;     // 50 Hz, plenty for buttons
+
+    // CRITICAL: the MCP23017 (0x20) shares the I2C bus with the GT911 touch
+    // controller (0x5D) on pins 15/16. The main loop runs ~1000x/sec; if we
+    // hit the MCP every iteration, that's ~1000 I2C transactions/sec — and
+    // when no MCP is wired they all NACK but still occupy the bus, starving
+    // the touch reads and making the screen feel dead/laggy. Rate-limit to
+    // 50 Hz so touch has the bus the rest of the time.
+    uint32_t now = millis();
+    if (now - last_poll_ms < POLL_INTERVAL_MS) return;
+    last_poll_ms = now;
 
     uint8_t raw = mcp_read_reg(MCP_GPIOA);
     if (raw == 0xFF) return;                  // bus error / MCP not present
