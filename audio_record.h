@@ -58,6 +58,13 @@ const char    *audio_record_last_error(void);         // human-readable, "" if n
 // surface the failure on Screen6.
 void audio_record_force_stop_for_network(const char *reason);
 
+// Called by audio_upload once the server-side finalize POST has succeeded
+// (or is skipped because no chunks were uploaded). Advances state from
+// FINALIZING to COMPLETE so the UI ticks past "Uploading…".
+// Declared here so the .cpp implementation inherits C linkage and the
+// audio_upload.cpp call site (which sees the same extern "C") resolves.
+void audio_record_mark_complete(void);
+
 // ─── Internal API used by audio_upload only ───
 // Get the next ready-to-upload chunk. Caller must release it. Returns false
 // if no chunk is ready. Non-blocking.
