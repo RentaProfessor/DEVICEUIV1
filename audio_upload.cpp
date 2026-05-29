@@ -52,8 +52,12 @@ static bool post_chunk(const audio_chunk_t *chunk) {
     bool ok = (code >= 200 && code < 300);
     if (!ok) {
         char msg[80];
-        if (code < 0) snprintf(msg, sizeof(msg), "chunk %u: %s", (unsigned)chunk->idx, http.errorToString(code).c_str());
-        else          snprintf(msg, sizeof(msg), "chunk %u: HTTP %d", (unsigned)chunk->idx, code);
+        if (code == 404)
+            snprintf(msg, sizeof(msg), "Cloud upload not enabled yet (server 404)");
+        else if (code < 0)
+            snprintf(msg, sizeof(msg), "Network error: %s", http.errorToString(code).c_str());
+        else
+            snprintf(msg, sizeof(msg), "Upload rejected (HTTP %d)", code);
         set_err(msg);
     } else {
         Serial.printf("[upload] chunk %u OK (%u bytes)\n", (unsigned)chunk->idx, (unsigned)chunk->size);
@@ -169,7 +173,11 @@ void audio_upload_begin(void) {
     g_running = true;
     g_uploaded = 0;
     g_err[0] = 0;
-    xTaskCreatePinnedToCore(upload_task, "audio_up", 8192, NULL, 4, &g_task, 1);
+    // Pin to core 0 (shares with the WiFi/BLE stack) so the blocking TLS
+    // POSTs don't starve the Arduino loop + LVGL on core 1. Without this,
+    // every upload's ~1-2s TLS handshake freezes the UI — most visibly the
+    // VU meter, which stops updating mid-recording.
+    xTaskCreatePinnedToCore(upload_task, "audio_up", 8192, NULL, 4, &g_task, 0);
 }
 
 void audio_upload_stop(void) {
