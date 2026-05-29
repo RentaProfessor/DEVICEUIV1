@@ -49,6 +49,10 @@ static void new_session_id(void) {
     g_session_id[32] = 0;
 }
 
+// Mic unmute + restore backlight. Both peripherals live on the STC8H1K28 µC
+// at I2C 0x30, so the unmute byte sequence can put the µC in a state where
+// backlight goes dark. Immediately after unmuting, re-send 0x10 (max
+// brightness) so the screen doesn't black out mid-session.
 static bool unmute_mic(void) {
     Wire.beginTransmission(0x30);
     Wire.write((uint8_t)0x00);
@@ -56,6 +60,12 @@ static bool unmute_mic(void) {
     uint8_t err = Wire.endTransmission();
     if (err != 0) Serial.printf("[audio] mic unmute I2C err=%u (continuing)\n", err);
     else          Serial.println("[audio] mic unmuted");
+
+    // Restore backlight to max — same byte the boot sequence sends
+    delay(10);
+    Wire.beginTransmission(0x30);
+    Wire.write((uint8_t)0x10);
+    Wire.endTransmission();
     return true;
 }
 
@@ -169,7 +179,9 @@ bool audio_record_begin(void) {
     }
     Serial.printf("[audio] %d x %u byte chunk buffers in PSRAM\n",
                   NUM_BUFFERS, (unsigned)AUDIO_CHUNK_BYTES);
-    unmute_mic();
+    // NOTE: unmute_mic() is NOT called here anymore. The unmute byte sequence
+    // shares an I2C address with the backlight µC and was killing the screen
+    // at boot. We unmute on demand at audio_record_start() instead.
     return true;
 }
 
@@ -185,7 +197,12 @@ bool audio_record_start(void) {
     g_chunks_captured  = 0;
     g_total_pcm_bytes  = 0;
     g_level            = 0;
+    g_last_error[0]    = 0;
     new_session_id();
+
+    // Unmute mic + immediately restore backlight in case the unmute disturbs
+    // the shared I2C 0x30 µC.
+    unmute_mic();
 
     g_i2s.setPinsPdmRx(MIC_CLK_PIN, MIC_DATA_PIN);
     if (!g_i2s.begin(I2S_MODE_PDM_RX, AUDIO_SAMPLE_RATE,
