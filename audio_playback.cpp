@@ -144,7 +144,9 @@ static int fetch_chapter(int chapter) {
 #define RING_BYTES      (256 * 1024)     // ~8s of 16k/mono/16-bit cushion
 #define PREBUFFER_BYTES (96 * 1024)      // ~3s buffered before audio starts
 
-static RingbufHandle_t  g_ring = nullptr;
+static RingbufHandle_t   g_ring = nullptr;
+static StaticRingbuffer_t g_ring_struct;          // control block (internal RAM)
+static uint8_t          *g_ring_storage = nullptr; // data area (PSRAM)
 static volatile bool    g_producer_done = false;
 static TaskHandle_t     g_producer = nullptr;
 
@@ -215,8 +217,16 @@ static void playback_task(void *) {
     if (r == 0) { g_state = PLAYBACK_NONE;  g_task = nullptr; vTaskDelete(NULL); return; }
     if (r < 0)  { g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return; }
 
-    // Ring buffer in PSRAM
-    if (!g_ring) g_ring = xRingbufferCreateWithCaps(RING_BYTES, RINGBUF_TYPE_BYTEBUF, MALLOC_CAP_SPIRAM);
+    // Ring buffer: control block in internal RAM, data area in PSRAM. (The
+    // ...WithCaps helper isn't in this core; CreateStatic with our own PSRAM
+    // storage gives the same result and is portable.)
+    if (!g_ring) {
+        if (!g_ring_storage)
+            g_ring_storage = (uint8_t *)heap_caps_malloc(RING_BYTES, MALLOC_CAP_SPIRAM);
+        if (g_ring_storage)
+            g_ring = xRingbufferCreateStatic(RING_BYTES, RINGBUF_TYPE_BYTEBUF,
+                                             g_ring_storage, &g_ring_struct);
+    }
     if (!g_ring) { set_err("ring alloc failed"); g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return; }
 
     // Unmute the panel audio path (0x30 µC) + restore backlight, then open I2S.
