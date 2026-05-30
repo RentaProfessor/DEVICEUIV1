@@ -241,7 +241,9 @@ static void playback_task(void *) {
     }
 
     // Start the network producer (own task so it can stay ahead of the speaker)
-    xTaskCreatePinnedToCore(producer_task, "play_prod", 8192, NULL, 5, &g_producer, 0);
+    // 12KB stack: the producer does an HTTPS (TLS/mbedTLS) GET per clip, which
+    // is stack-hungry; 8KB risked a stack overflow (crash/glitch).
+    xTaskCreatePinnedToCore(producer_task, "play_prod", 12288, NULL, 5, &g_producer, 0);
 
     // Prebuffer: wait until we've got a cushion (or the producer already finished
     // a short clip) before letting audio start — prevents an immediate underrun.
@@ -258,18 +260,23 @@ static void playback_task(void *) {
 
     // Consumer: drain ring -> stereo+volume -> I2S, steadily. Reassemble
     // aligned 16-bit samples across ring chunks via a 1-byte carry.
+    // Read cap is 1024 bytes => up to 512 mono samples => 512 stereo frames =>
+    // 1024 int16 in `stereo`. (The earlier crackle/crash was a 2x overflow of
+    // this buffer when reads were up to ~2KB but stereo[] was only 1024.)
+    #define READ_CAP 1024
     uint8_t  carry = 0; bool has_carry = false;
-    int16_t  stereo[1024];               // up to 1024 mono samples per block
+    int16_t  stereo[READ_CAP];           // 512 frames * 2 ch = 1024 int16
     uint64_t played = 0;
     const uint64_t bps = PLAY_SAMPLE_RATE * 2;
 
     while (!g_stop_req) {
         size_t rn = 0;
-        // Pull up to ~2KB at a time from the ring (zero-copy pointer)
-        uint8_t *rp = (uint8_t *)xRingbufferReceiveUpTo(g_ring, &rn, pdMS_TO_TICKS(200), 2046);
+        // Pull up to READ_CAP-2 bytes (room for the 1-byte carry, keeps the
+        // assembled buffer within `stereo` after mono->stereo expansion).
+        uint8_t *rp = (uint8_t *)xRingbufferReceiveUpTo(g_ring, &rn, pdMS_TO_TICKS(200), READ_CAP - 2);
         if (rp == nullptr) {
-            if (g_producer_done && xRingbufferGetCurFreeSize(g_ring) == RING_BYTES) break;  // drained + done
-            continue;   // waiting for producer
+            if (g_producer_done) break;   // producer finished + ring drained
+            continue;                     // still buffering
         }
 
         // Assemble with carry so sample boundaries stay aligned across reads.
@@ -311,6 +318,10 @@ static void playback_task(void *) {
 void audio_playback_start(int chapter_idx) {
     if (g_state == PLAYBACK_PLAYING || g_state == PLAYBACK_FETCHING) return;
     if (WiFi.status() != WL_CONNECTED) { set_err("WiFi not connected"); g_state = PLAYBACK_ERROR; return; }
+    // If a previous playback's tasks are still tearing down (stop is
+    // non-blocking), wait briefly so we don't run two consumers on one I2S.
+    for (int i = 0; i < 60 && (g_task != nullptr || g_producer != nullptr); i++) delay(10);
+    if (g_task != nullptr || g_producer != nullptr) { set_err("still stopping previous playback"); return; }
     if (!g_clips) {
         g_clips = (clip_t *)heap_caps_malloc(sizeof(clip_t) * MAX_CLIPS, MALLOC_CAP_SPIRAM);
         if (!g_clips) { set_err("PSRAM alloc failed"); g_state = PLAYBACK_ERROR; return; }
@@ -323,10 +334,14 @@ void audio_playback_start(int chapter_idx) {
 }
 
 void audio_playback_stop(void) {
+    // NON-BLOCKING. This is called from the LVGL event handler (main loop) when
+    // the user taps STOP / leaves Screen7. The old version blocked up to 800ms
+    // waiting for the tasks to exit, which froze LVGL — that was the
+    // black-screen-for-a-second glitch on stop. Just signal; the producer +
+    // consumer tasks see g_stop_req, tear down I2S/HTTP themselves, and exit.
+    // They only touch module-static state (ring, g_spk), never LVGL objects,
+    // so it's safe for them to finish after the screen has moved on.
     g_stop_req = true;
-    // Wait for BOTH the consumer (g_task) and producer (g_producer) to exit so
-    // neither touches I2S / the ring after we return.
-    for (int i = 0; i < 80 && (g_task != nullptr || g_producer != nullptr); i++) delay(10);
 }
 
 playback_state_t audio_playback_state(void)        { return g_state; }
