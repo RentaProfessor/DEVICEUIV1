@@ -55,7 +55,7 @@ static void volume_load(void) {
     if (g_volume >= 0) return;
     Preferences p;
     p.begin("ltvol", true);
-    g_volume = p.getInt("v", 45);
+    g_volume = p.getInt("v", 70);   // right-channel-only may halve level; start higher
     p.end();
     if (g_volume < 0) g_volume = 0;
     if (g_volume > 100) g_volume = 100;
@@ -274,12 +274,16 @@ static void playback_task(void *) {
         int samples = mlen / 2;
         if (mlen & 1) { carry = mono[mlen - 1]; has_carry = true; }   // stash odd byte
 
+        // Audio on the RIGHT channel only, LEFT silent — EXACTLY matching the
+        // CrowPanel factory playback. Putting the same sample on both channels
+        // distorts because the panel's amp path sums L+R (= 2x = hard clipping),
+        // which is the extreme distortion we heard. Right-only avoids that.
         int vol = g_volume;
         for (int i = 0; i < samples; i++) {
             int16_t raw = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
             int16_t s = (int16_t)(((int32_t)raw * vol) / 100);
-            stereo[i * 2]     = s;
-            stereo[i * 2 + 1] = s;
+            stereo[i * 2]     = 0;   // left muted
+            stereo[i * 2 + 1] = s;   // right carries the audio
         }
         if (samples > 0) g_spk.write((uint8_t *)stereo, samples * 4);
         played += samples * 2;
