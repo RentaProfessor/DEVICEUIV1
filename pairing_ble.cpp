@@ -61,6 +61,12 @@ static void notify_status(uint8_t code) {
 // blocking scan there would stall the BLE stack. Async scans proved unreliable
 // while a BLE connection is active (the scan-done callback often never fires
 // under radio coexistence), which is why reads were returning the empty [].
+// Last good (non-empty) scan result, as ready-to-serve JSON. Persists across
+// BLE connects so even if a live re-scan returns 0 under coexistence, we still
+// serve the real networks found at boot. Starts empty.
+static char   g_cached_list[512] = "[]";
+static size_t g_cached_len = 2;
+
 static void request_wifi_scan() {
     g_scan_requested = true;
     g_wifi_scan_published = false;
@@ -68,59 +74,59 @@ static void request_wifi_scan() {
 
 // ESP32-S3 radio is 2.4GHz-only, so scan results are inherently networks the
 // device can join — no 5GHz filtering needed (it can't see them).
-
-// Build + publish the network list to char 0x0004. Called when the async scan
-// completes (n>=0) OR on timeout/failure (publishes an EMPTY array so the app
-// can distinguish "no networks" from "scan broken" — it must never go silent).
-// A BLE characteristic value maxes at 512 bytes (ATT), and a single notify is
-// capped at ATT_MTU-3. We keep the published JSON under ~480 bytes so a full
-// readValue (iOS reassembles reads to 512B) returns the COMPLETE list. We add
-// the STRONGEST networks first (sorted by RSSI) and stop before the size cap,
-// so the cap only ever drops weak networks the user wouldn't pick.
+//
+// A BLE characteristic value maxes at 512 bytes (ATT). We keep JSON under ~480
+// bytes, strongest-RSSI-first, so a reassembled read returns the COMPLETE list.
 #define WIFI_JSON_MAX 480
 
-static void publish_wifi_list(int n) {
+// Run a SYNCHRONOUS scan and, if it finds networks, rebuild g_cached_list.
+// Returns the network count (<=0 means scan found nothing / failed — common
+// under live-BLE coexistence, in which case g_cached_list keeps its last good
+// value). Applies the documented coexistence mitigations: STA mode, WiFi power
+// save OFF, a settle delay, fresh scanDelete before scanning.
+static int scan_and_cache(void) {
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);          // WIFI_PS_NONE — power save breaks coex scans
+    delay(120);                    // let the radio settle before scanning
+    WiFi.scanDelete();
+    int n = WiFi.scanNetworks(false /*sync*/, false /*hidden*/);
+    Serial.printf("[ble] scan_and_cache: %d network(s)\n", n);
+    if (n <= 0) { WiFi.scanDelete(); return n; }
+
     StaticJsonDocument<1024> doc;
     JsonArray arr = doc.to<JsonArray>();
-    int kept = 0;
-
-    if (n > 0) {
-        // Sort scan indices by RSSI descending (simple selection — n is small)
-        int order[40];
-        int cnt = (n > 40) ? 40 : n;
-        for (int i = 0; i < cnt; i++) order[i] = i;
-        for (int i = 0; i < cnt - 1; i++) {
-            int best = i;
-            for (int j = i + 1; j < cnt; j++)
-                if (WiFi.RSSI(order[j]) > WiFi.RSSI(order[best])) best = j;
-            int tmp = order[i]; order[i] = order[best]; order[best] = tmp;
-        }
-        for (int k = 0; k < cnt; k++) {
-            String ssid = WiFi.SSID(order[k]);
-            if (ssid.length() == 0) continue;          // skip hidden/blank
-            JsonObject net = arr.createNestedObject();
-            net["ssid"] = ssid;
-            net["rssi"] = WiFi.RSSI(order[k]);
-            // Stop before we exceed the readable-attribute size budget
-            if (measureJson(doc) > WIFI_JSON_MAX) {
-                arr.remove(arr.size() - 1);            // drop the one that overflowed
-                break;
-            }
-            kept++;
-        }
+    int order[40];
+    int cnt = (n > 40) ? 40 : n;
+    for (int i = 0; i < cnt; i++) order[i] = i;
+    for (int i = 0; i < cnt - 1; i++) {              // sort by RSSI desc
+        int best = i;
+        for (int j = i + 1; j < cnt; j++)
+            if (WiFi.RSSI(order[j]) > WiFi.RSSI(order[best])) best = j;
+        int tmp = order[i]; order[i] = order[best]; order[best] = tmp;
     }
+    for (int k = 0; k < cnt; k++) {
+        String ssid = WiFi.SSID(order[k]);
+        if (ssid.length() == 0) continue;            // skip hidden/blank
+        JsonObject net = arr.createNestedObject();
+        net["ssid"] = ssid;
+        net["rssi"] = WiFi.RSSI(order[k]);
+        if (measureJson(doc) > WIFI_JSON_MAX) { arr.remove(arr.size() - 1); break; }
+    }
+    g_cached_len = serializeJson(doc, g_cached_list, sizeof(g_cached_list));
+    WiFi.scanDelete();
+    Serial.printf("[ble] cached %u-byte network list\n", (unsigned)g_cached_len);
+    return n;
+}
 
-    char buf[512];
-    size_t len = serializeJson(doc, buf, sizeof(buf));
+// Push whatever is in g_cached_list to char 0x0004 (setValue persists it for
+// reassembled reads; notify wakes the app). Never silent — worst case "[]".
+static void publish_cached_list(void) {
     if (g_wifilist_char) {
-        g_wifilist_char->setValue((uint8_t *)buf, len);
+        g_wifilist_char->setValue((uint8_t *)g_cached_list, g_cached_len);
         g_wifilist_char->notify();
     }
-    Serial.printf("[ble] published %d of %d network(s) to 0x0004 (%u bytes, fits 512 read)\n",
-                  kept, n < 0 ? 0 : n, (unsigned)len);
-
+    Serial.printf("[ble] published cached list to 0x0004 (%u bytes)\n", (unsigned)g_cached_len);
     g_wifi_scan_published = true;
-    WiFi.scanDelete();
 }
 
 // ─── WiFi credentials handler ───────────────────────────────────────────────
@@ -300,6 +306,13 @@ void pairing_ble_begin(void) {
         return;
     }
 
+    // Boot-time WiFi scan BEFORE any BLE radio activity. This is the one window
+    // with zero BLE coexistence interference, so the scan is reliable here. We
+    // cache the result and serve it on connect; a live re-scan refreshes it but
+    // falls back to this cache if coexistence zeroes the live scan.
+    Serial.println("[ble] boot-time WiFi scan (pre-BLE, no coexistence)...");
+    scan_and_cache();
+
     char ble_name[24];
     snprintf(ble_name, sizeof(ble_name), "LegacyTape-%s", pairing_get_device_id());
 
@@ -327,7 +340,9 @@ void pairing_ble_begin(void) {
         LT_BLE_WIFILIST_UUID,
         BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
     g_wifilist_char->addDescriptor(new BLE2902());
-    g_wifilist_char->setValue("[]");   // empty until scan completes
+    // Seed with the boot-time scan cache so the very first read returns real
+    // networks even before the on-connect re-scan runs.
+    g_wifilist_char->setValue((uint8_t *)g_cached_list, g_cached_len);
     g_wifilist_char->setCallbacks(new WifiListCharCallbacks());
 
     svc->start();
@@ -371,11 +386,13 @@ void pairing_ble_loop(void) {
     if (!g_scan_requested) return;
     g_scan_requested = false;
 
-    Serial.println("[ble] running synchronous WiFi scan...");
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect(false, false);
-    WiFi.scanDelete();
-    int n = WiFi.scanNetworks(false /*sync*/, false /*show hidden*/);  // blocks until done
-    Serial.printf("[ble] scan complete: %d network(s)\n", n);
-    publish_wifi_list(n);   // n<=0 publishes empty [] — never silent
+    // Serve the cached list immediately so the app's picker fills fast even if
+    // the live re-scan below comes back empty (BLE-coexistence can zero it).
+    publish_cached_list();
+
+    // Attempt a fresh scan to pick up newly-powered routers. If it finds
+    // networks it refreshes the cache; if coexistence zeroes it, the cache
+    // (from the boot scan / a prior connect) is preserved. Re-publish either way.
+    int n = scan_and_cache();
+    if (n > 0) publish_cached_list();
 }
