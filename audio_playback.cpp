@@ -17,6 +17,7 @@
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/ringbuf.h>
 
 static const char *SUPABASE_URL      = "https://uunxgkhhjjczeeawqflh.supabase.co";
 static const char *SUPABASE_ANON_KEY = "sb_publishable_cBhuF6-XRJJxNv9hxHBUDw_M3lBpwqF";
@@ -133,100 +134,92 @@ static int fetch_chapter(int chapter) {
     return 1;
 }
 
-// Stream one clip's WAV to the (already-open, STEREO) I2S output. base_sec is
-// the global timeline offset of this clip's start, for the position readout.
-// Returns false if the user requested stop mid-clip.
-static bool stream_clip(const char *url, uint32_t base_sec) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    client.setTimeout(20);
-    HTTPClient http;
-    http.setTimeout(20000);
-    http.begin(client, url);
-    const char *hdrs[] = {"Location"};
-    http.collectHeaders(hdrs, 1);
-    int code = http.GET();
-    if (code == 301 || code == 302 || code == 307) {
-        String loc = http.header("Location");
-        http.end();
-        http.begin(client, loc);
-        code = http.GET();
-    }
-    if (code != 200) {
-        char m[40]; snprintf(m, sizeof(m), "clip GET HTTP %d", code);
-        set_err(m); http.end(); return true;   // skip this clip, keep going
-    }
+// ─── Streaming ring buffer (producer = network, consumer = I2S) ─────────────
+// A bounded PSRAM byte buffer decouples network jitter from I2S timing, so
+// playback is smooth AND unlimited length — memory stays fixed regardless of
+// recording duration. The producer task GETs each clip and pushes raw PCM into
+// the ring; the consumer (playback_task) drains it to the speaker at a steady
+// rate. Sample alignment is reassembled across ring boundaries so an odd-byte
+// network read can't byte-swap the audio into static.
+#define RING_BYTES      (256 * 1024)     // ~8s of 16k/mono/16-bit cushion
+#define PREBUFFER_BYTES (96 * 1024)      // ~3s buffered before audio starts
 
-    int content_len = http.getSize();   // -1 if chunked/unknown
-    Serial.printf("[playback] clip GET 200, content-length=%d\n", content_len);
+static RingbufHandle_t  g_ring = nullptr;
+static volatile bool    g_producer_done = false;
+static TaskHandle_t     g_producer = nullptr;
 
-    WiFiClient *stream = http.getStreamPtr();
-    stream->setTimeout(2000);            // blocking readBytes up to 2s
-
-    // Read the whole WAV header (44 bytes) — readBytes blocks until it has them
-    uint8_t hdr[44];
-    int hr = 0;
-    while (hr < 44 && !g_stop_req) {
-        int r = stream->readBytes(hdr + hr, 44 - hr);
-        if (r <= 0) { if (!stream->connected()) break; continue; }
-        hr += r;
-    }
-
-    // Mono PCM in -> duplicate each 16-bit sample to L+R for stereo I2S out.
-    // The MAX98357 needs audio on the channel(s) it reads; mono frames don't
-    // reach it reliably. This matches the factory playback path.
-    uint8_t  mono[1024];
-    int16_t  stereo[1024];               // 512 mono samples -> 512 L/R pairs
-    uint64_t played = 0;                 // PCM bytes consumed (mono)
-    const uint64_t bps = PLAY_SAMPLE_RATE * 2;
-    int remaining = (content_len > 44) ? (content_len - 44) : -1;
-
-    while (!g_stop_req) {
-        int want = sizeof(mono);
-        if (remaining > 0 && remaining < want) want = remaining;
-        int n = stream->readBytes(mono, want);
-        if (n <= 0) {
-            if (!stream->connected() && stream->available() == 0) break;  // EOF
+// Producer: stream every clip's PCM body into the ring (skipping each 44-byte
+// WAV header). Blocks on xRingbufferSend when the ring is full — that's the
+// backpressure that paces the network to the speaker.
+static void producer_task(void *) {
+    for (int i = 0; i < g_clip_count && !g_stop_req; i++) {
+        Serial.printf("[playback] producer clip %d/%d\n", i + 1, g_clip_count);
+        WiFiClientSecure client;
+        client.setInsecure();
+        client.setTimeout(20);
+        HTTPClient http;
+        http.setTimeout(20000);
+        http.begin(client, g_clips[i].url);
+        const char *hdrs[] = {"Location"};
+        http.collectHeaders(hdrs, 1);
+        int code = http.GET();
+        if (code == 301 || code == 302 || code == 307) {
+            String loc = http.header("Location");
+            http.end(); http.begin(client, loc); code = http.GET();
+        }
+        if (code != 200) {
+            Serial.printf("[playback] producer clip GET HTTP %d (skip)\n", code);
+            http.end();
             continue;
         }
-        // Expand mono16 -> stereo16, applying the software volume scale.
-        // Scaling down never clips (vol<=100); it tames the full-scale samples
-        // that were clipping against the amp's hardware gain.
-        int samples = n / 2;
-        int vol = g_volume;   // snapshot (may change mid-playback via buttons)
-        for (int i = 0; i < samples; i++) {
-            int16_t raw = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
-            int16_t s = (int16_t)(((int32_t)raw * vol) / 100);
-            stereo[i * 2]     = s;
-            stereo[i * 2 + 1] = s;
+        WiFiClient *stream = http.getStreamPtr();
+        stream->setTimeout(3000);
+
+        // Skip 44-byte WAV header
+        uint8_t hdr[44]; int hr = 0;
+        while (hr < 44 && !g_stop_req) {
+            int r = stream->readBytes(hdr + hr, 44 - hr);
+            if (r <= 0) { if (!stream->connected()) break; continue; }
+            hr += r;
         }
-        g_spk.write((uint8_t *)stereo, samples * 4);   // 2 ch * 2 bytes
-        played += n;
-        if (remaining > 0) { remaining -= n; if (remaining <= 0) break; }
-        g_pos_sec = base_sec + (uint32_t)(played / bps);
+        // Body -> ring
+        uint8_t buf[2048];
+        while (!g_stop_req) {
+            int n = stream->readBytes(buf, sizeof(buf));
+            if (n <= 0) {
+                if (!stream->connected() && stream->available() == 0) break;  // clip EOF
+                continue;
+            }
+            // Block until the ring has room (backpressure paces the download),
+            // but retry on a timeout so a stop request can't deadlock us when
+            // the consumer has stopped draining a full ring.
+            while (!g_stop_req && xRingbufferSend(g_ring, buf, n, pdMS_TO_TICKS(200)) != pdTRUE) {}
+            if (g_stop_req) break;
+        }
+        http.end();
     }
-    Serial.printf("[playback] clip done: %llu PCM bytes\n", (unsigned long long)played);
-    http.end();
-    return !g_stop_req;
+    g_producer_done = true;
+    Serial.println("[playback] producer done");
+    g_producer = nullptr;
+    vTaskDelete(NULL);
 }
 
 static void playback_task(void *) {
     g_state = PLAYBACK_FETCHING;
     g_pos_sec = 0;
     g_err[0] = 0;
-    volume_load();   // make sure g_volume is ready before we scale samples
+    g_producer_done = false;
+    volume_load();
 
     int r = fetch_chapter(g_chapter);
     if (r == 0) { g_state = PLAYBACK_NONE;  g_task = nullptr; vTaskDelete(NULL); return; }
     if (r < 0)  { g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return; }
 
-    // Open I2S output once for the whole chapter (all clips share the format).
-    // STEREO out: we duplicate the mono recording into both channels so the
-    // MAX98357 amp gets audio regardless of which channel it reads. (Matches
-    // the factory playback path — mono frames didn't reach the amp.)
-    // Unmute the panel audio path (STC8H1K28 µC @ 0x30) in case the SPK port
-    // routes through the onboard amp, which boots muted. Restore backlight
-    // brightness right after (the 0x30 µC also controls it).
+    // Ring buffer in PSRAM
+    if (!g_ring) g_ring = xRingbufferCreateWithCaps(RING_BYTES, RINGBUF_TYPE_BYTEBUF, MALLOC_CAP_SPIRAM);
+    if (!g_ring) { set_err("ring alloc failed"); g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return; }
+
+    // Unmute the panel audio path (0x30 µC) + restore backlight, then open I2S.
     Wire.beginTransmission(0x30); Wire.write((uint8_t)0x00); Wire.write((uint8_t)0x17); Wire.endTransmission();
     delay(10);
     Wire.beginTransmission(0x30); Wire.write((uint8_t)0x10); Wire.endTransmission();
@@ -237,15 +230,64 @@ static void playback_task(void *) {
         g_state = PLAYBACK_ERROR; g_task = nullptr; vTaskDelete(NULL); return;
     }
 
+    // Start the network producer (own task so it can stay ahead of the speaker)
+    xTaskCreatePinnedToCore(producer_task, "play_prod", 8192, NULL, 5, &g_producer, 0);
+
+    // Prebuffer: wait until we've got a cushion (or the producer already finished
+    // a short clip) before letting audio start — prevents an immediate underrun.
     g_state = PLAYBACK_PLAYING;
-    uint32_t base = 0;
-    for (int i = 0; i < g_clip_count && !g_stop_req; i++) {
-        Serial.printf("[playback] clip %d/%d (base %us)\n", i + 1, g_clip_count, (unsigned)base);
-        stream_clip(g_clips[i].url, base);
-        base += g_clips[i].dur;
+    {
+        uint32_t t0 = millis();
+        while (!g_stop_req
+               && xRingbufferGetCurFreeSize(g_ring) > (RING_BYTES - PREBUFFER_BYTES)
+               && !g_producer_done
+               && millis() - t0 < 8000) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+    }
+
+    // Consumer: drain ring -> stereo+volume -> I2S, steadily. Reassemble
+    // aligned 16-bit samples across ring chunks via a 1-byte carry.
+    uint8_t  carry = 0; bool has_carry = false;
+    int16_t  stereo[1024];               // up to 1024 mono samples per block
+    uint64_t played = 0;
+    const uint64_t bps = PLAY_SAMPLE_RATE * 2;
+
+    while (!g_stop_req) {
+        size_t rn = 0;
+        // Pull up to ~2KB at a time from the ring (zero-copy pointer)
+        uint8_t *rp = (uint8_t *)xRingbufferReceiveUpTo(g_ring, &rn, pdMS_TO_TICKS(200), 2046);
+        if (rp == nullptr) {
+            if (g_producer_done && xRingbufferGetCurFreeSize(g_ring) == RING_BYTES) break;  // drained + done
+            continue;   // waiting for producer
+        }
+
+        // Assemble with carry so sample boundaries stay aligned across reads.
+        // Worst case: 1 carry + rn bytes. Process complete 16-bit samples.
+        static uint8_t mono[2048];
+        int mlen = 0;
+        if (has_carry) { mono[mlen++] = carry; has_carry = false; }
+        memcpy(mono + mlen, rp, rn);
+        mlen += rn;
+        vRingbufferReturnItem(g_ring, rp);
+
+        int samples = mlen / 2;
+        if (mlen & 1) { carry = mono[mlen - 1]; has_carry = true; }   // stash odd byte
+
+        int vol = g_volume;
+        for (int i = 0; i < samples; i++) {
+            int16_t raw = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
+            int16_t s = (int16_t)(((int32_t)raw * vol) / 100);
+            stereo[i * 2]     = s;
+            stereo[i * 2 + 1] = s;
+        }
+        if (samples > 0) g_spk.write((uint8_t *)stereo, samples * 4);
+        played += samples * 2;
+        g_pos_sec = (uint32_t)(played / bps);
     }
 
     g_spk.end();
+    if (g_producer) g_stop_req = true;   // ensure producer also winds down
     g_state = g_stop_req ? PLAYBACK_IDLE : PLAYBACK_DONE;
     Serial.printf("[playback] chapter finished at %us\n", (unsigned)g_pos_sec);
     g_task = nullptr;
@@ -268,7 +310,9 @@ void audio_playback_start(int chapter_idx) {
 
 void audio_playback_stop(void) {
     g_stop_req = true;
-    for (int i = 0; i < 60 && g_task != nullptr; i++) delay(10);
+    // Wait for BOTH the consumer (g_task) and producer (g_producer) to exit so
+    // neither touches I2S / the ring after we return.
+    for (int i = 0; i < 80 && (g_task != nullptr || g_producer != nullptr); i++) delay(10);
 }
 
 playback_state_t audio_playback_state(void)        { return g_state; }
