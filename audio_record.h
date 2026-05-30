@@ -51,6 +51,11 @@ const char    *audio_record_session_id(void);         // current/last session UU
 uint32_t       audio_record_chunks_captured(void);    // sequential ID of next chunk
 const char    *audio_record_last_error(void);         // human-readable, "" if none
 
+// True while the capture task is still running (still flushing chunks). The
+// uploader must wait for this to go false before judging a session as
+// "nothing uploaded" — otherwise it races the final partial-chunk flush.
+bool           audio_record_capture_active(void);
+
 // Network-failure abort path. Called by audio_upload after N consecutive upload
 // failures (i.e. WiFi is gone and isn't coming back). Sets state to ERROR,
 // records the reason, and tells capture_task to exit immediately without

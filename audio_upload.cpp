@@ -163,12 +163,20 @@ static void upload_task(void *) {
         // uploaded something. Don't finalize an empty session — leave it for
         // server-side janitor cleanup.
         if (g_finalize_pending && audio_record_state() == AUDIO_STATE_FINALIZING) {
+            // CRITICAL: don't judge the session until the capture task has
+            // finished flushing. On a short recording (< one 10s chunk) the
+            // only chunk is the final partial one, flushed when capture exits.
+            // If we evaluate before that, we race ahead and wrongly report
+            // "nothing uploaded". Wait for capture to finish, then loop back
+            // so take_chunk() at the top grabs + uploads the partial chunk.
+            if (audio_record_capture_active()) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+                continue;
+            }
             if (g_uploaded == 0) {
-                // Nothing reached the cloud. This is a FAILURE, not success —
-                // don't let the UI claim "Uploaded." Set an error the Screen6
-                // status surfaces. Most common cause: WiFi wasn't connected.
-                Serial.println("[upload] FAILED: 0 chunks uploaded (WiFi down?)");
-                if (g_err[0] == 0) set_err("Nothing uploaded - check WiFi");
+                // Capture is done and genuinely nothing uploaded — real failure.
+                Serial.println("[upload] FAILED: 0 chunks uploaded");
+                if (g_err[0] == 0) set_err("Nothing uploaded - check connection");
                 g_finalize_pending = false;
                 audio_record_mark_complete();   // advance state so UI doesn't hang
             } else if (post_finalize(g_final_duration, g_final_chapter)) {

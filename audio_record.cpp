@@ -236,6 +236,7 @@ uint8_t        audio_record_level_percent(void)     { return g_level; }
 const char    *audio_record_session_id(void)        { return g_session_id; }
 uint32_t       audio_record_chunks_captured(void)   { return g_chunks_captured; }
 const char    *audio_record_last_error(void)        { return g_last_error; }
+bool           audio_record_capture_active(void)    { return g_task != nullptr; }
 
 void audio_record_force_stop_for_network(const char *reason) {
     if (g_state != AUDIO_STATE_RECORDING) return;
