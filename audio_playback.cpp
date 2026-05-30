@@ -26,7 +26,10 @@ static const char *SUPABASE_ANON_KEY = "sb_publishable_cBhuF6-XRJJxNv9hxHBUDw_M3
 #define PLAY_SAMPLE_RATE 16000
 
 #define MAX_CLIPS  64
-#define URL_LEN    480
+// Supabase signed URLs are /storage/v1/object/sign/...?token=<JWT>; the JWT
+// alone is ~200 chars, so the full URL runs ~300-380. 768 gives safe headroom
+// — a truncated URL would silently fail the GET.
+#define URL_LEN    768
 typedef struct { char url[URL_LEN]; uint32_t dur; } clip_t;
 
 static I2SClass        g_spk;
