@@ -112,6 +112,26 @@ static void upload_task(void *) {
 
     while (g_running) {
         if (WiFi.status() != WL_CONNECTED) {
+            // WiFi dropped (coexistence, BLE teardown, power blip, etc).
+            // Actively reconnect with the credentials stored at pairing
+            // instead of just failing — recording audio shouldn't be lost
+            // because WiFi briefly went away.
+            const char *ssid = pairing_get_wifi_ssid();
+            if (strlen(ssid) > 0) {
+                Serial.printf("[upload] WiFi down — reconnecting to '%s'\n", ssid);
+                WiFi.begin(ssid, pairing_get_wifi_pw());
+                uint32_t t0 = millis();
+                while (WiFi.status() != WL_CONNECTED && millis() - t0 < 6000) delay(100);
+                if (WiFi.status() != WL_CONNECTED) {
+                    const char *ssid2 = pairing_get_wifi_ssid2();
+                    if (strlen(ssid2) > 0) {
+                        WiFi.begin(ssid2, pairing_get_wifi_pw2());
+                        t0 = millis();
+                        while (WiFi.status() != WL_CONNECTED && millis() - t0 < 6000) delay(100);
+                    }
+                }
+            }
+            if (WiFi.status() == WL_CONNECTED) { consecutive_failures = 0; continue; }
             consecutive_failures++;
             if (audio_record_state() == AUDIO_STATE_RECORDING && consecutive_failures >= UPLOAD_FAILURE_LIMIT) {
                 audio_record_force_stop_for_network("WiFi disconnected");

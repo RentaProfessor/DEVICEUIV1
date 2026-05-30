@@ -274,6 +274,14 @@ void setup() {
     Wire.setClock(400000);
     delay(50);
 
+    // Keep WiFi sticky: auto-reconnect if it drops, and don't sleep the radio
+    // (power save interferes with both scans and staying associated). Without
+    // this, a brief drop after pairing (BLE teardown / coexistence) left the
+    // device offline and recordings failed to upload.
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    WiFi.setSleep(false);
+
     // Wake the backlight µC, wait for it + GT911, then enable backlight.
     // (GT911 reset on GPIO 1 happens inside backlight_init's wait loop.)
     backlight_init();
