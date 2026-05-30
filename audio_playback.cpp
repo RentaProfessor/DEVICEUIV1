@@ -142,7 +142,7 @@ static int fetch_chapter(int chapter) {
 // rate. Sample alignment is reassembled across ring boundaries so an odd-byte
 // network read can't byte-swap the audio into static.
 #define RING_BYTES      (320 * 1024)     // ~10s of 16k/mono/16-bit cushion
-#define PREBUFFER_BYTES (160 * 1024)     // ~5s buffered before audio starts
+#define PREBUFFER_BYTES (96 * 1024)      // ~3s buffered before audio starts
 
 static RingbufHandle_t   g_ring = nullptr;
 static StaticRingbuffer_t g_ring_struct;          // control block (internal RAM)
@@ -181,7 +181,7 @@ static void producer_task(void *) {
         uint8_t hdr[44]; int hr = 0;
         while (hr < 44 && !g_stop_req) {
             int r = stream->readBytes(hdr + hr, 44 - hr);
-            if (r <= 0) { if (!stream->connected()) break; continue; }
+            if (r <= 0) { if (!stream->connected()) break; vTaskDelay(1); continue; }
             hr += r;
         }
         // Body -> ring
@@ -190,6 +190,7 @@ static void producer_task(void *) {
             int n = stream->readBytes(buf, sizeof(buf));
             if (n <= 0) {
                 if (!stream->connected() && stream->available() == 0) break;  // clip EOF
+                vTaskDelay(1);   // no data yet — yield, don't busy-spin
                 continue;
             }
             // Block until the ring has room (backpressure paces the download),
@@ -197,6 +198,11 @@ static void producer_task(void *) {
             // the consumer has stopped draining a full ring.
             while (!g_stop_req && xRingbufferSend(g_ring, buf, n, pdMS_TO_TICKS(200)) != pdTRUE) {}
             if (g_stop_req) break;
+            // CRITICAL: yield every iteration so the CPU-0 IDLE task runs and
+            // feeds the task watchdog. Without this, when network data + ring
+            // space are both ready (e.g. while filling the prebuffer) the loop
+            // is CPU-bound and starves IDLE0 -> watchdog panic + reboot.
+            vTaskDelay(1);
         }
         http.end();
     }
