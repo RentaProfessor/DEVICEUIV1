@@ -8,7 +8,25 @@ lv_obj_t *ui_S7_Timer = NULL;
 static lv_obj_t   *s7_status   = NULL;
 static lv_obj_t   *s7_progress = NULL;
 static lv_obj_t   *s7_lamp     = NULL;
+static lv_obj_t   *s7_vol_lbl  = NULL;
 static lv_timer_t *s7_ticker   = NULL;
+
+static void s7_vol_refresh(void) {
+    if (!s7_vol_lbl) return;
+    char b[24];
+    snprintf(b, sizeof(b), "VOL  %d%%", audio_playback_get_volume());
+    lv_label_set_text(s7_vol_lbl, b);
+}
+static void s7_vol_down(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    audio_playback_volume_step(-10);
+    s7_vol_refresh();
+}
+static void s7_vol_up(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    audio_playback_volume_step(+10);
+    s7_vol_refresh();
+}
 
 static void s7_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init); }
 static void s7_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init); }
@@ -99,12 +117,62 @@ void ui_Screen7_screen_init(void) {
 
     ltw_pulse_lamp(s7_lamp, 1600);   // gentle green pulse while playing
 
-    ltw_hw_legend(ui_Screen7,
-                  NULL,       NULL,
-                  "Playing",  NULL,
-                  "Rewind",   NULL,
-                  "Fast Fwd", NULL,
-                  "Stop",     s7_stop);
+    // ── Transport row: VOL-  [VOL xx%]  VOL+ ............... STOP ──
+    // (Replaces the 5-cap hw legend — only volume + stop matter during
+    //  playback; RWD/FF aren't wired in v1.)
+    const int ROW_Y = 330, BTN_H = 56;
+
+    lv_obj_t *volDown = lv_btn_create(ui_Screen7);
+    lv_obj_set_size(volDown, 96, BTN_H);
+    lv_obj_set_pos(volDown, 70, ROW_Y);
+    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x2A1D14), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(volDown, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(volDown, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(volDown, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_t *vdl = lv_label_create(volDown);
+    lv_label_set_text(vdl, "VOL -");
+    lv_obj_set_style_text_color(vdl, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(vdl, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_center(vdl);
+    lv_obj_add_event_cb(volDown, s7_vol_down, LV_EVENT_CLICKED, NULL);
+
+    s7_vol_lbl = lv_label_create(ui_Screen7);
+    lv_obj_set_size(s7_vol_lbl, 150, 30);
+    lv_obj_set_pos(s7_vol_lbl, 178, ROW_Y + 14);
+    lv_obj_set_style_text_color(s7_vol_lbl, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(s7_vol_lbl, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(s7_vol_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    s7_vol_refresh();
+
+    lv_obj_t *volUp = lv_btn_create(ui_Screen7);
+    lv_obj_set_size(volUp, 96, BTN_H);
+    lv_obj_set_pos(volUp, 338, ROW_Y);
+    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x2A1D14), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(volUp, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(volUp, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(volUp, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_t *vul = lv_label_create(volUp);
+    lv_label_set_text(vul, "VOL +");
+    lv_obj_set_style_text_color(vul, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(vul, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_center(vul);
+    lv_obj_add_event_cb(volUp, s7_vol_up, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *stopBtn = lv_btn_create(ui_Screen7);
+    lv_obj_set_size(stopBtn, 180, BTN_H);
+    lv_obj_set_pos(stopBtn, 550, ROW_Y);
+    lv_obj_set_style_bg_color(stopBtn, lv_color_hex(LT_RED_CTA), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(stopBtn, lv_color_hex(LT_BURGUNDY), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(stopBtn, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(stopBtn, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_t *sbl = lv_label_create(stopBtn);
+    lv_label_set_text(sbl, "STOP");
+    lv_obj_set_style_text_color(sbl, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(sbl, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_center(sbl);
+    lv_obj_add_event_cb(stopBtn, s7_stop, LV_EVENT_CLICKED, NULL);
 
     int ach = book_get_active_chapter();
     const char *acn = book_get_chapter_name(ach);
@@ -123,5 +191,5 @@ void ui_Screen7_screen_destroy(void) {
     audio_playback_stop();
     if (ui_Screen7) lv_obj_del(ui_Screen7);
     ui_Screen7 = NULL; ui_S7_Timer = NULL;
-    s7_status = NULL; s7_progress = NULL; s7_lamp = NULL;
+    s7_status = NULL; s7_progress = NULL; s7_lamp = NULL; s7_vol_lbl = NULL;
 }

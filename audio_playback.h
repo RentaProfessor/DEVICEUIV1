@@ -42,6 +42,13 @@ uint32_t         audio_playback_position_sec(void);   // seconds played so far
 uint32_t         audio_playback_duration_sec(void);   // total, from server
 const char      *audio_playback_last_error(void);
 
+// Volume 0..100 (%). Applied as a software scale to samples before I2S, so it
+// works on top of the MAX98357's fixed hardware gain. Persisted in NVS.
+// Default is a conservative level that won't clip the amp.
+int  audio_playback_get_volume(void);
+void audio_playback_set_volume(int vol);              // clamped 0..100, saved
+void audio_playback_volume_step(int delta);           // +/- by delta, clamped, saved
+
 #ifdef __cplusplus
 }
 #endif

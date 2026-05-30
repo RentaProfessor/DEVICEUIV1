@@ -13,6 +13,7 @@
 #include <ESP_I2S.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
+#include <Preferences.h>
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -43,6 +44,37 @@ static TaskHandle_t      g_task     = nullptr;
 
 static clip_t *g_clips = nullptr;     // PSRAM
 static int     g_clip_count = 0;
+
+// ─── Volume (software scale, persisted) ─────────────────────────────────────
+// Default 45%: the MAX98357 adds ~9 dB hardware gain, so full-scale samples
+// clip hard. Scaling to ~45% keeps peaks clean. User-adjustable on Screen7.
+static int g_volume = -1;   // -1 = not loaded from NVS yet
+
+static void volume_load(void) {
+    if (g_volume >= 0) return;
+    Preferences p;
+    p.begin("ltvol", true);
+    g_volume = p.getInt("v", 45);
+    p.end();
+    if (g_volume < 0) g_volume = 0;
+    if (g_volume > 100) g_volume = 100;
+}
+
+int audio_playback_get_volume(void) { volume_load(); return g_volume; }
+
+void audio_playback_set_volume(int vol) {
+    if (vol < 0) vol = 0; if (vol > 100) vol = 100;
+    g_volume = vol;
+    Preferences p;
+    p.begin("ltvol", false);
+    p.putInt("v", g_volume);
+    p.end();
+}
+
+void audio_playback_volume_step(int delta) {
+    volume_load();
+    audio_playback_set_volume(g_volume + delta);
+}
 
 static void set_err(const char *m) {
     strncpy(g_err, m, sizeof(g_err) - 1);
@@ -157,10 +189,14 @@ static bool stream_clip(const char *url, uint32_t base_sec) {
             if (!stream->connected() && stream->available() == 0) break;  // EOF
             continue;
         }
-        // Expand mono16 -> stereo16
+        // Expand mono16 -> stereo16, applying the software volume scale.
+        // Scaling down never clips (vol<=100); it tames the full-scale samples
+        // that were clipping against the amp's hardware gain.
         int samples = n / 2;
+        int vol = g_volume;   // snapshot (may change mid-playback via buttons)
         for (int i = 0; i < samples; i++) {
-            int16_t s = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
+            int16_t raw = (int16_t)(mono[i * 2] | (mono[i * 2 + 1] << 8));
+            int16_t s = (int16_t)(((int32_t)raw * vol) / 100);
             stereo[i * 2]     = s;
             stereo[i * 2 + 1] = s;
         }
@@ -178,6 +214,7 @@ static void playback_task(void *) {
     g_state = PLAYBACK_FETCHING;
     g_pos_sec = 0;
     g_err[0] = 0;
+    volume_load();   // make sure g_volume is ready before we scale samples
 
     int r = fetch_chapter(g_chapter);
     if (r == 0) { g_state = PLAYBACK_NONE;  g_task = nullptr; vTaskDelete(NULL); return; }
