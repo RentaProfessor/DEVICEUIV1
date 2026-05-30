@@ -141,8 +141,8 @@ static int fetch_chapter(int chapter) {
 // the ring; the consumer (playback_task) drains it to the speaker at a steady
 // rate. Sample alignment is reassembled across ring boundaries so an odd-byte
 // network read can't byte-swap the audio into static.
-#define RING_BYTES      (256 * 1024)     // ~8s of 16k/mono/16-bit cushion
-#define PREBUFFER_BYTES (96 * 1024)      // ~3s buffered before audio starts
+#define RING_BYTES      (320 * 1024)     // ~10s of 16k/mono/16-bit cushion
+#define PREBUFFER_BYTES (160 * 1024)     // ~5s buffered before audio starts
 
 static RingbufHandle_t   g_ring = nullptr;
 static StaticRingbuffer_t g_ring_struct;          // control block (internal RAM)
@@ -330,7 +330,13 @@ void audio_playback_start(int chapter_idx) {
     g_stop_req = false;
     g_pos_sec  = 0;
     g_dur_sec  = 0;
-    xTaskCreatePinnedToCore(playback_task, "audio_play", 12288, NULL, 4, &g_task, 0);
+    // Consumer (ring -> I2S) on CORE 1 at elevated priority, away from the
+    // network producer + WiFi stack on core 0. This is the key anti-underrun
+    // move: the I2S feeder is no longer starved when the network bursts, so it
+    // keeps the DMA fed steadily. It blocks on i2s.write (DMA full) and yields
+    // to LVGL; when the DMA drains it preempts to refill. Priority 3 > the
+    // Arduino loop's 1 so audio output wins the refill race on core 1.
+    xTaskCreatePinnedToCore(playback_task, "audio_play", 12288, NULL, 3, &g_task, 1);
 }
 
 void audio_playback_stop(void) {
