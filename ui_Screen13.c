@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_widgets.h"
+#include "book.h"
 
 lv_obj_t *ui_Screen13 = NULL;
 
@@ -28,7 +29,7 @@ void ui_Screen13_screen_init(void) {
     lv_obj_set_style_text_color(pillL, lv_color_hex(LT_INK_DARK), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(pillL, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ltw_cassette(ui_Screen13, 620, 200, -16, "Grandpa's Stories", "REC");
+    ltw_cassette(ui_Screen13, 620, 200, -16, book_get_name(), NULL);
 
     // Banner with amber-tinted background to indicate chapter just advanced
     lv_obj_t *banner = lv_obj_create(ui_Screen13);

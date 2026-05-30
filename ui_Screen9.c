@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_widgets.h"
+#include "book.h"
 
 lv_obj_t *ui_Screen9 = NULL;
 lv_obj_t *ui_S9_AiCaption = NULL;
@@ -33,7 +34,7 @@ void ui_Screen9_screen_init(void) {
     lv_obj_set_style_text_color(chipL, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(chipL, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_t *cass = ltw_cassette(ui_Screen9, 620, 180, -36, "Grandpa's Stories", "REC");
+    lv_obj_t *cass = ltw_cassette(ui_Screen9, 620, 180, -36, book_get_name(), NULL);
     lv_obj_set_style_outline_color(cass, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_outline_width(cass, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_outline_pad(cass, 8, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -66,7 +67,10 @@ void ui_Screen9_screen_init(void) {
     lv_obj_set_style_text_color(aiT, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(aiT, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ltw_chapter_banner(ui_Screen9, "CHAPTER 03", "THE EARLY YEARS", s9_to_chapter, s9_to_book);
+    int s9ch = book_get_active_chapter();
+    const char *s9cn = book_get_chapter_name(s9ch);
+    char s9num[16]; snprintf(s9num, sizeof(s9num), "CHAPTER %02d", s9ch + 1);
+    ltw_chapter_banner(ui_Screen9, s9num, s9cn ? s9cn : "Chapter 1", s9_to_chapter, s9_to_book);
 }
 
 void ui_Screen9_screen_destroy(void) {

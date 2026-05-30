@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "ui_widgets.h"
+#include "book.h"
 
 lv_obj_t *ui_Screen12 = NULL;
 
@@ -32,7 +33,7 @@ void ui_Screen12_screen_init(void) {
     lv_obj_set_style_text_color(chipL, lv_color_hex(LT_AMBER), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(chipL, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ltw_cassette(ui_Screen12, 620, 200, -36, "Grandpa's Stories", NULL);
+    ltw_cassette(ui_Screen12, 620, 200, -36, book_get_name(), NULL);
 
     // Error banner above chapter banner
     lv_obj_t *err = lv_obj_create(ui_Screen12);
@@ -72,7 +73,10 @@ void ui_Screen12_screen_init(void) {
     lv_obj_center(retryL);
     lv_obj_add_event_cb(retry, s12_retry, LV_EVENT_ALL, NULL);
 
-    ltw_chapter_banner(ui_Screen12, "CHAPTER 03", "THE EARLY YEARS", s12_to_chapter, s12_to_book);
+    int s12ch = book_get_active_chapter();
+    const char *s12cn = book_get_chapter_name(s12ch);
+    char s12num[16]; snprintf(s12num, sizeof(s12num), "CHAPTER %02d", s12ch + 1);
+    ltw_chapter_banner(ui_Screen12, s12num, s12cn ? s12cn : "Chapter 1", s12_to_chapter, s12_to_book);
 }
 
 void ui_Screen12_screen_destroy(void) {

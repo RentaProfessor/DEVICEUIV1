@@ -111,7 +111,10 @@ void ui_Screen6_screen_init(void) {
                   "Rewind",   NULL,
                   "Fast Fwd", NULL,
                   NULL,       NULL);
-    ltw_chapter_banner(ui_Screen6, "CHAPTER 03", "THE EARLY YEARS", s6_to_chapter, s6_to_book);
+    int s6ch = book_get_active_chapter();
+    const char *s6cn = book_get_chapter_name(s6ch);
+    char s6num[16]; snprintf(s6num, sizeof(s6num), "CHAPTER %02d", s6ch + 1);
+    ltw_chapter_banner(ui_Screen6, s6num, s6cn ? s6cn : "Chapter 1", s6_to_chapter, s6_to_book);
 
     if (!s6_ticker) s6_ticker = lv_timer_create(s6_tick, 250, NULL);
 }

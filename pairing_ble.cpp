@@ -39,6 +39,7 @@ static BLECharacteristic *g_wifilist_char = nullptr;
 static volatile bool      g_client_connected = false;
 static bool               g_wifi_scan_published = false;
 static volatile bool      g_scan_requested = false;   // a callback asked for a scan
+static volatile bool      g_creds_received = false;   // creds in -> stop scanning (scan disconnects WiFi)
 // True while wifi_try() is mid-connect. Main loop checks this and skips
 // lv_timer_handler() so the RGB panel DMA doesn't fight WiFi's PSRAM use.
 static volatile bool      g_busy = false;
@@ -231,6 +232,12 @@ class PairCharCallbacks : public BLECharacteristicCallbacks {
             return;
         }
 
+        // Credentials received — STOP scanning from now on. scan_and_cache()
+        // calls WiFi.disconnect(), so a scan triggered by a BLE reconnect
+        // after this point would tear down the WiFi we're about to connect.
+        g_creds_received = true;
+        g_scan_requested = false;
+
         notify_status(LT_STATUS_WIFI_CONNECTING);
 
         // Try primary, then secondary if provided
@@ -263,7 +270,7 @@ class WifiListCharCallbacks : public BLECharacteristicCallbacks {
         // scan (covers the app's "Rescan" which re-reads this characteristic).
         // The current value is returned now; the fresh list is notify'd when
         // the scan completes.
-        if (!g_wifi_scan_published) {
+        if (!g_wifi_scan_published && !g_creds_received) {
             request_wifi_scan();
         }
     }
@@ -286,8 +293,9 @@ class ServerCallbacks : public BLEServerCallbacks {
         // Request a fresh 2.4GHz scan on every connect so the picker is
         // populated, and a reconnect ('Rescan' in the app) re-scans for newly
         // powered-on routers. The scan runs in pairing_ble_loop (main loop),
-        // result notify'd + stored to 0x0004 when done.
-        request_wifi_scan();
+        // result notify'd + stored to 0x0004 when done. Skip once credentials
+        // are in — a scan from here would WiFi.disconnect() the live link.
+        if (!g_creds_received) request_wifi_scan();
     }
     void onDisconnect(BLEServer *srv) override {
         g_client_connected = false;
@@ -383,6 +391,7 @@ void pairing_ble_stop(void) {
 // blocking the main loop doesn't stall the BLE connection.
 void pairing_ble_loop(void) {
     if (!g_server) return;
+    if (g_creds_received) return;     // never scan after creds — it'd drop WiFi
     if (!g_scan_requested) return;
     g_scan_requested = false;
 
