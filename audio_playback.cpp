@@ -19,6 +19,16 @@
 #include <freertos/task.h>
 #include <freertos/ringbuf.h>
 
+// ArduinoJson allocator that lives in PSRAM, so parsing the get_recording
+// response never depends on a large contiguous block of (fragmented) internal
+// heap — which was making deserializeJson fail with a "bad JSON" even on a
+// small, valid response after BLE/WiFi/audio had chewed up internal RAM.
+struct SpiRamAllocator : ArduinoJson::Allocator {
+    void *allocate(size_t size) override   { return heap_caps_malloc(size, MALLOC_CAP_SPIRAM); }
+    void  deallocate(void *p) override      { heap_caps_free(p); }
+    void *reallocate(void *p, size_t s) override { return heap_caps_realloc(p, s, MALLOC_CAP_SPIRAM); }
+};
+
 static const char *SUPABASE_URL      = "https://uunxgkhhjjczeeawqflh.supabase.co";
 static const char *SUPABASE_ANON_KEY = "sb_publishable_cBhuF6-XRJJxNv9hxHBUDw_M3lBpwqF";
 
@@ -108,10 +118,18 @@ static int fetch_chapter(int chapter) {
     String resp = http.getString();
     http.end();
 
-    // Response can be large (many signed URLs). Parse with a filter so we only
-    // keep the fields we need, keeping memory bounded.
-    DynamicJsonDocument doc(32768);
-    if (deserializeJson(doc, resp)) { set_err("bad JSON from get_recording"); return -1; }
+    // Parse into a PSRAM-backed, elastic JsonDocument so a fragmented internal
+    // heap can't sink the parse. Log the exact error + response head on failure
+    // so a real malformed/short response is diagnosable instead of opaque.
+    static SpiRamAllocator psram_alloc;
+    JsonDocument doc(&psram_alloc);
+    DeserializationError jerr = deserializeJson(doc, resp);
+    if (jerr) {
+        Serial.printf("[playback] JSON parse error: %s | %u bytes | head: %.120s\n",
+                      jerr.c_str(), (unsigned)resp.length(), resp.c_str());
+        set_err("bad JSON from get_recording");
+        return -1;
+    }
     if (!(doc["found"] | false)) return 0;
 
     g_dur_sec = doc["total_duration_sec"] | 0;
