@@ -29,12 +29,14 @@ static void s5_to_stopped(lv_event_t *e) {
     _ui_screen_change(&ui_Screen6, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen6_screen_init);
 }
 
-// Timer + VU updater — runs every 80ms via lv_timer while Screen5 is active.
-// 80ms = ~12 fps, smooth enough for a VU meter without flooding LVGL.
-#define VU_SEGMENTS 20
-static lv_timer_t *s5_ticker = NULL;
-static lv_obj_t   *s5_segs[VU_SEGMENTS] = {0};
-static uint8_t     s5_peak_hold = 0;   // decaying peak indicator
+// Timer + VU updater — runs every 60ms via lv_timer while Screen5 is active.
+// VU is a single SOLID bar that grows with the mic level (no segments, no
+// floating peak dots). The displayed level is smoothed (fast attack, slow
+// release) so it tracks speech naturally instead of flickering.
+#define VU_TRACK_W 612                 // inner width of the meter track (px)
+static lv_timer_t *s5_ticker  = NULL;
+static lv_obj_t   *s5_vu_fill = NULL;  // the solid level bar
+static int         s5_disp    = 0;     // smoothed displayed level 0..100
 
 static void s5_tick(lv_timer_t *t) {
     if (!ui_Screen5) return;
@@ -47,27 +49,17 @@ static void s5_tick(lv_timer_t *t) {
              (unsigned)(s / 3600), (unsigned)((s / 60) % 60), (unsigned)(s % 60));
     if (ui_S5_Timer) lv_label_set_text(ui_S5_Timer, buf);
 
-    // Segmented VU meter, lit proportional to live mic level.
-    uint8_t level = (st == AUDIO_STATE_RECORDING) ? audio_record_level_percent() : 0;
-    // Peak-hold: jumps up instantly, decays slowly — classic VU feel
-    if (level > s5_peak_hold) s5_peak_hold = level;
-    else if (s5_peak_hold > 2) s5_peak_hold -= 2;
+    // Live mic level, smoothed: jump up fast, fall slow (natural VU ballistics).
+    int level = (st == AUDIO_STATE_RECORDING) ? audio_record_level_percent() : 0;
+    if (level > s5_disp) s5_disp = level;                       // instant attack
+    else                 s5_disp += (level - s5_disp) / 3;      // gentle release
+    if (s5_disp < 0) s5_disp = 0; if (s5_disp > 100) s5_disp = 100;
 
-    int lit = (level * VU_SEGMENTS) / 100;
-    int peak_seg = (s5_peak_hold * VU_SEGMENTS) / 100;
-    for (int i = 0; i < VU_SEGMENTS; i++) {
-        uint32_t color;
-        bool on = (i < lit) || (i == peak_seg);
-        if (!on) {
-            color = 0x2A1E14;   // dim/off
-        } else if (i < VU_SEGMENTS * 7 / 10) {
-            color = 0x4AC06A;   // green (safe)
-        } else if (i < VU_SEGMENTS * 9 / 10) {
-            color = 0xE5B03A;   // amber (loud)
-        } else {
-            color = 0xE53935;   // red (clipping)
-        }
-        if (s5_segs[i]) lv_obj_set_style_bg_color(s5_segs[i], lv_color_hex(color), LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (s5_vu_fill) {
+        lv_obj_set_width(s5_vu_fill, (lv_coord_t)(s5_disp * VU_TRACK_W / 100));
+        // Solid bar, whole-bar colour by level: green / amber (loud) / red (hot)
+        uint32_t c = (s5_disp < 70) ? 0x4AC06A : (s5_disp < 90) ? 0xE5B03A : 0xE53935;
+        lv_obj_set_style_bg_color(s5_vu_fill, lv_color_hex(c), LV_PART_MAIN | LV_STATE_DEFAULT);
     }
 }
 
@@ -83,7 +75,7 @@ void ui_Screen5_screen_init(void) {
 
     ltw_cassette(ui_Screen5, 620, 200, -36, book_get_name(), NULL);
 
-    // Segmented VU meter — VU_SEGMENTS discrete bars, lit live by s5_tick.
+    // Solid VU meter: a dark track with one fill bar that grows with the level.
     lv_obj_t *vu_track = lv_obj_create(ui_Screen5);
     lv_obj_set_size(vu_track, 620, 36);
     lv_obj_set_pos(vu_track, 90, 286);
@@ -95,22 +87,15 @@ void ui_Screen5_screen_init(void) {
     lv_obj_set_style_radius(vu_track, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(vu_track, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    const int seg_gap = 3;
-    const int track_inner = 620 - 8;                 // minus padding
-    const int seg_w = (track_inner - (VU_SEGMENTS - 1) * seg_gap) / VU_SEGMENTS;
-    for (int i = 0; i < VU_SEGMENTS; i++) {
-        lv_obj_t *seg = lv_obj_create(vu_track);
-        lv_obj_set_size(seg, seg_w, 28);
-        lv_obj_set_pos(seg, i * (seg_w + seg_gap), 0);
-        lv_obj_clear_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(seg, lv_color_hex(0x2A1E14), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(seg, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(seg, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(seg, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-        s5_segs[i] = seg;
-    }
-    s5_peak_hold = 0;
+    s5_vu_fill = lv_obj_create(vu_track);
+    lv_obj_set_size(s5_vu_fill, 0, 28);              // width set live in s5_tick
+    lv_obj_align(s5_vu_fill, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_clear_flag(s5_vu_fill, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(s5_vu_fill, lv_color_hex(0x4AC06A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(s5_vu_fill, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(s5_vu_fill, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(s5_vu_fill, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
+    s5_disp = 0;
 
     ltw_hw_legend(ui_Screen5,
                   "Recording", NULL,
@@ -134,7 +119,7 @@ void ui_Screen5_screen_init(void) {
     } else {
         printf("[S5] mic capture failed to start\n");
     }
-    if (!s5_ticker) s5_ticker = lv_timer_create(s5_tick, 80, NULL);
+    if (!s5_ticker) s5_ticker = lv_timer_create(s5_tick, 60, NULL);
 }
 
 void ui_Screen5_screen_destroy(void) {
@@ -144,5 +129,5 @@ void ui_Screen5_screen_destroy(void) {
     ltw_stop_lamp_pulse(ui_S5_PilotLamp);
     if (ui_Screen5) lv_obj_del(ui_Screen5);
     ui_Screen5 = NULL; ui_S5_Timer = NULL; ui_S5_PilotLamp = NULL;
-    for (int i = 0; i < VU_SEGMENTS; i++) s5_segs[i] = NULL;
+    s5_vu_fill = NULL;
 }
