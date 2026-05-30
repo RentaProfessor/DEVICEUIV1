@@ -307,8 +307,17 @@ static void playback_task(void *) {
         g_pos_sec = (uint32_t)(played / bps);
     }
 
-    g_spk.end();
     if (g_producer) g_stop_req = true;   // ensure producer also winds down
+
+    // Flush ~120 ms of silence so the I2S DMA drains cleanly before deinit —
+    // avoids the end-of-playback pop AND lets the DMA finish in flight so
+    // tearing it down doesn't disrupt the RGB panel's DMA (which was flashing
+    // the screen black at the end).
+    memset(stereo, 0, sizeof(stereo));
+    for (int k = 0; k < 4; k++) g_spk.write((uint8_t *)stereo, sizeof(stereo));
+    delay(20);
+    g_spk.end();
+
     g_state = g_stop_req ? PLAYBACK_IDLE : PLAYBACK_DONE;
     Serial.printf("[playback] chapter finished at %us\n", (unsigned)g_pos_sec);
     g_task = nullptr;
@@ -330,13 +339,12 @@ void audio_playback_start(int chapter_idx) {
     g_stop_req = false;
     g_pos_sec  = 0;
     g_dur_sec  = 0;
-    // Consumer (ring -> I2S) on CORE 1 at elevated priority, away from the
-    // network producer + WiFi stack on core 0. This is the key anti-underrun
-    // move: the I2S feeder is no longer starved when the network bursts, so it
-    // keeps the DMA fed steadily. It blocks on i2s.write (DMA full) and yields
-    // to LVGL; when the DMA drains it preempts to refill. Priority 3 > the
-    // Arduino loop's 1 so audio output wins the refill race on core 1.
-    xTaskCreatePinnedToCore(playback_task, "audio_play", 12288, NULL, 3, &g_task, 1);
+    // Consumer (ring -> I2S) on CORE 1, away from the network producer + WiFi
+    // on core 0 — the key anti-underrun move. Priority 2: above the Arduino/
+    // LVGL loop (1) so audio wins the DMA-refill race, but not so high it
+    // starves the display flush + idle/watchdog (priority 3 was glitching the
+    // RGB panel black near the end). It blocks on i2s.write yielding to LVGL.
+    xTaskCreatePinnedToCore(playback_task, "audio_play", 12288, NULL, 2, &g_task, 1);
 }
 
 void audio_playback_stop(void) {
