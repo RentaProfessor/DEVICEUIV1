@@ -41,7 +41,9 @@ static void fmt_mmss(uint32_t s, char *out, size_t n) {
 }
 
 static void s7_tick(lv_timer_t *t) {
-    if (!s7_status) return;
+    // Created once, never destroyed — skip work unless Playback is visible so it
+    // doesn't keep invalidating widgets (full-screen repaints) on hidden screens.
+    if (!s7_status || lv_scr_act() != ui_Screen7) return;
     playback_state_t st = audio_playback_state();
     char buf[64];
 

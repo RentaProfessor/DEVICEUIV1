@@ -39,7 +39,10 @@ static lv_obj_t   *s5_vu_fill = NULL;  // the solid level bar
 static int         s5_disp    = 0;     // smoothed displayed level 0..100
 
 static void s5_tick(lv_timer_t *t) {
-    if (!ui_Screen5) return;
+    // Only do work while Recording is the visible screen. This timer is created
+    // once and never destroyed, so without this guard it keeps ticking (and
+    // invalidating widgets -> forcing full-screen repaints) on hidden screens.
+    if (lv_scr_act() != ui_Screen5) return;
     audio_state_t st = audio_record_state();
 
     // Timer

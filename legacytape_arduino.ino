@@ -150,7 +150,17 @@ static uint8_t mcp_read_reg(uint8_t reg) {
     return Wire.available() ? Wire.read() : 0xFF;
 }
 
+// Set once at boot: is the MCP23017 button board actually on the bus? If not,
+// buttons_poll() must NOT keep hitting 0x20 — every probe is an I2C transaction
+// on the SAME bus as the GT911 touch (0x5D), and that contention causes ghost /
+// dropped touches that read as random "glitches" when tapping. Auto-enables if
+// the board is wired later.
+static bool g_mcp_present = false;
+
 static void buttons_init() {
+    g_mcp_present = i2cScanForAddress(MCP_ADDR);
+    Serial.printf("[buttons] MCP23017 %s\n", g_mcp_present ? "present" : "not wired — polling disabled");
+    if (!g_mcp_present) return;
     // Pins 0-4 as input (1 bits in IODIR = input)
     mcp_write_reg(MCP_IODIRA, BTN_MASK);
     // Internal pull-ups on the same pins
@@ -187,6 +197,7 @@ static void on_button_pressed(uint8_t btn) {
 }
 
 static void buttons_poll() {
+    if (!g_mcp_present) return;               // no button board → leave the I2C bus to touch
     static uint8_t last_state = BTN_MASK;     // all high = nothing pressed
     static uint32_t last_change_ms = 0;
     static uint32_t last_poll_ms = 0;

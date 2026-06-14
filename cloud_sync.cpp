@@ -23,26 +23,37 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // Supabase project + anon key — matches the iOS app's src/lib/supabase.ts
 static const char *SUPABASE_URL      = "https://uunxgkhhjjczeeawqflh.supabase.co";
 static const char *SUPABASE_ANON_KEY = "sb_publishable_cBhuF6-XRJJxNv9hxHBUDw_M3lBpwqF";
 
 static const unsigned long POLL_INTERVAL_MS = 5000;
-static bool          g_active     = false;
-static unsigned long g_last_poll  = 0;
+static volatile bool g_active     = false;
 static unsigned int  g_poll_count = 0;
+static TaskHandle_t  g_task       = nullptr;
+
+static void cloud_poll_task(void *);
 
 void cloud_sync_begin(void) {
+    if (g_active) return;
     g_active = true;
-    g_last_poll = 0;   // poll immediately on first loop tick
     g_poll_count = 0;
     Serial.println("[cloud] polling started — waiting for onboarding_complete=true");
+    // Poll on its OWN core-0 task, NOT the main loop. do_poll() does a blocking
+    // HTTPS POST (TLS handshake can take hundreds of ms to seconds); running it
+    // on loop() froze LVGL + touch every 5s, so taps on the pairing screen were
+    // dropped and the UI "glitched". The task only sets a flag on success
+    // (pairing_mark_complete); the actual screen change still happens on the
+    // main loop via pairing_consume_complete_event(), so this stays LVGL-safe.
+    xTaskCreatePinnedToCore(cloud_poll_task, "cloud_sync", 8192, NULL, 3, &g_task, 0);
 }
 
 void cloud_sync_stop(void) {
     if (g_active) Serial.println("[cloud] polling stopped");
-    g_active = false;
+    g_active = false;   // task observes this and exits on its own
 }
 
 static void do_poll(void) {
@@ -113,10 +124,19 @@ static void do_poll(void) {
     http.end();
 }
 
-void cloud_sync_loop(void) {
-    if (!g_active) return;
-    unsigned long now = millis();
-    if (now - g_last_poll < POLL_INTERVAL_MS) return;
-    g_last_poll = now;
-    do_poll();
+// Background poller. Polls immediately, then every POLL_INTERVAL_MS, checking
+// g_active frequently so cloud_sync_stop() tears it down within ~100ms.
+static void cloud_poll_task(void *) {
+    while (g_active) {
+        do_poll();
+        for (uint32_t w = 0; w < POLL_INTERVAL_MS && g_active; w += 100)
+            vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    Serial.println("[cloud] poll task exiting");
+    g_task = nullptr;
+    vTaskDelete(NULL);
 }
+
+// Polling now runs on its own task (see cloud_sync_begin). Kept as a no-op so
+// the main loop's call site still links without edits to the .ino.
+void cloud_sync_loop(void) {}

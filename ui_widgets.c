@@ -138,90 +138,186 @@ void ltw_hw_legend(lv_obj_t *parent,
     }
 }
 
+// Small filled circle helper for cassette detailing (hubs, teeth, screws, holes).
+static lv_obj_t *cass_circle(lv_obj_t *p, int cx, int cy, int d, uint32_t color,
+                            uint32_t border_color, int border_w) {
+    lv_obj_t *o = lv_obj_create(p);
+    lv_obj_set_size(o, d, d);
+    lv_obj_set_pos(o, cx - d / 2, cy - d / 2);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(o, lv_color_hex(color), 0);
+    lv_obj_set_style_bg_opa(o, 255, 0);
+    lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(o, border_w, 0);
+    if (border_w) lv_obj_set_style_border_color(o, lv_color_hex(border_color), 0);
+    lv_obj_set_style_pad_all(o, 0, 0);
+    return o;
+}
+
+// One tape reel: wound-tape disc + ivory hub + 6 teeth holes + spindle.
+static void cass_reel(lv_obj_t *cass, int cx, int cy, int rsize) {
+    // Hexagonal unit offsets for the 6 hub teeth (no math.h needed).
+    static const float TX[6] = { 1.0f, 0.5f, -0.5f, -1.0f, -0.5f,  0.5f };
+    static const float TY[6] = { 0.0f, 0.866f, 0.866f, 0.0f, -0.866f, -0.866f };
+
+    cass_circle(cass, cx, cy, rsize,            0x241712, 0x3E2C1E, 2);   // wound tape pack
+    cass_circle(cass, cx, cy, rsize * 64 / 100, 0xE8D6A8, 0x8A6A3A, 1);   // ivory hub
+    int tr = rsize * 22 / 100;                                            // teeth ring radius
+    int td = rsize * 13 / 100; if (td < 6) td = 6;                        // tooth diameter
+    for (int k = 0; k < 6; k++)
+        cass_circle(cass, cx + (int)(TX[k] * tr), cy + (int)(TY[k] * tr), td, 0x140C08, 0, 0);
+    cass_circle(cass, cx, cy, rsize * 16 / 100, 0x0E0907, 0, 0);          // spindle hole
+}
+
 lv_obj_t *ltw_cassette(lv_obj_t *parent, int w, int h, int y_offset,
                        const char *book_title, const char *vu_tag) {
+    (void)vu_tag;
     int x = (800 - w) / 2;
     int y = 64 + (322 - h) / 2 + y_offset;
+
+    // ── Shell: molded warm-grey plastic with a soft vertical sheen ──
     lv_obj_t *cass = lv_obj_create(parent);
     lv_obj_set_size(cass, w, h);
     lv_obj_set_pos(cass, x, y);
     lv_obj_clear_flag(cass, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(cass, lv_color_hex(0x1F1510), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(cass, lv_color_hex(0x170E0B), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(cass, lv_color_hex(0x2C2622), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_color(cass, lv_color_hex(0x171210), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(cass, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(cass, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(cass, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(cass, lv_color_hex(0x0C0908), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(cass, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(cass, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(cass, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(cass, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // Top edge highlight (thin lighter strip) for a glossy molded look
+    lv_obj_t *sheen = lv_obj_create(cass);
+    lv_obj_set_size(sheen, w - 24, 3);
+    lv_obj_set_pos(sheen, 12, 6);
+    lv_obj_clear_flag(sheen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(sheen, lv_color_hex(0x4A423C), 0);
+    lv_obj_set_style_bg_opa(sheen, 160, 0);
+    lv_obj_set_style_border_width(sheen, 0, 0);
+    lv_obj_set_style_radius(sheen, 2, 0);
 
-    // Cream label band
-    lv_obj_t *band = lv_obj_create(cass);
-    int bw = w - 80;
-    lv_obj_set_size(band, bw, 80);
-    lv_obj_align(band, LV_ALIGN_TOP_MID, 0, 25);
+    // Four corner screws
+    cass_circle(cass, 15,     15,     10, 0x0E0B09, 0x46403A, 2);
+    cass_circle(cass, w - 15, 15,     10, 0x0E0B09, 0x46403A, 2);
+    cass_circle(cass, 15,     h - 15, 10, 0x0E0B09, 0x46403A, 2);
+    cass_circle(cass, w - 15, h - 15, 10, 0x0E0B09, 0x46403A, 2);
+
+    // ── Cream J-card label with a colored header band + ruled lines ──
+    int labelW = w - 96, labelH = h * 2 / 5, labelX = 48, labelY = 16;
+    lv_obj_t *label = lv_obj_create(cass);
+    lv_obj_set_size(label, labelW, labelH);
+    lv_obj_set_pos(label, labelX, labelY);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(label, lv_color_hex(0xF5E8C2), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_color(label, lv_color_hex(0xE4CF9C), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_dir(label, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(label, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(label, lv_color_hex(0x8A6A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(label, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(label, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    // Burgundy header band
+    lv_obj_t *band = lv_obj_create(label);
+    lv_obj_set_size(band, labelW, 18);
+    lv_obj_set_pos(band, 0, 0);
     lv_obj_clear_flag(band, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(band, lv_color_hex(0xF3E3B8), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(band, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(band, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(band, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(band, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(band, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(band, lv_color_hex(LT_BURGUNDY), 0);
+    lv_obj_set_style_bg_opa(band, 255, 0);
+    lv_obj_set_style_border_width(band, 0, 0);
+    lv_obj_set_style_radius(band, 0, 0);
+    lv_obj_set_style_pad_all(band, 0, 0);
+    lv_obj_t *bl = lv_label_create(band);
+    lv_obj_align(bl, LV_ALIGN_LEFT_MID, 8, 0);
+    lv_label_set_text(bl, "SIDE A");
+    lv_obj_set_style_text_color(bl, lv_color_hex(0xF6ECD4), 0);
+    lv_obj_set_style_text_font(bl, &ui_font_Arhivo_regular_16, 0);
+    lv_obj_set_style_text_letter_space(bl, 2, 0);
+    lv_obj_t *br = lv_label_create(band);
+    lv_obj_align(br, LV_ALIGN_RIGHT_MID, -8, 0);
+    lv_label_set_text(br, "LEGACY TAPE");
+    lv_obj_set_style_text_color(br, lv_color_hex(0xE8C9A0), 0);
+    lv_obj_set_style_text_font(br, &ui_font_Arhivo_regular_16, 0);
+    lv_obj_set_style_text_letter_space(br, 1, 0);
 
-    lv_obj_t *titleL = lv_label_create(band);
-    lv_obj_center(titleL);
+    // Title (the book name) centered in the label body
+    lv_obj_t *titleL = lv_label_create(label);
+    lv_obj_set_width(titleL, labelW - 24);
+    lv_label_set_long_mode(titleL, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(titleL, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(titleL, LV_ALIGN_CENTER, 0, 6);
     lv_label_set_text(titleL, book_title);
-    lv_obj_set_style_text_color(titleL, lv_color_hex(LT_INK_DARK), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(titleL, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    // Reels
-    int rsize = h / 3;
-    int ry = h - rsize - 20;
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *reel = lv_obj_create(cass);
-        lv_obj_set_size(reel, rsize, rsize);
-        lv_obj_set_pos(reel, i == 0 ? (w / 4 - rsize / 2) : (3 * w / 4 - rsize / 2), ry);
-        lv_obj_clear_flag(reel, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(reel, lv_color_hex(0x100808), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(reel, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(reel, LV_RADIUS_CIRCLE, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(reel, lv_color_hex(0xC8A868), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(reel, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(reel, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(titleL, lv_color_hex(0x2A1A12), 0);
+    lv_obj_set_style_text_font(titleL, &ui_font_Arhivo_regular_22, 0);
+    // Two faint ruled lines under the title (handwriting guide feel)
+    for (int r = 0; r < 2; r++) {
+        lv_obj_t *rule = lv_obj_create(label);
+        lv_obj_set_size(rule, labelW - 40, 1);
+        lv_obj_align(rule, LV_ALIGN_BOTTOM_MID, 0, -10 + r * 9);
+        lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_color(rule, lv_color_hex(0xB89A60), 0);
+        lv_obj_set_style_bg_opa(rule, 130, 0);
+        lv_obj_set_style_border_width(rule, 0, 0);
+        lv_obj_set_style_radius(rule, 0, 0);
     }
 
-    // NOTE: This widget used to draw a hardcoded 12-segment "VU meter" with
-    // fake static green/amber levels whenever vu_tag was set. That was pure
-    // placeholder filler — it never reflected real audio. Removed. Screens that
-    // need a live meter (Screen5 Recording) build their own real segmented VU
-    // driven by audio_record_level_percent(). The vu_tag param is kept for
-    // source compatibility but no longer renders anything.
-    (void)vu_tag;
+    // ── Recessed tape window framing both reels ──
+    int rsize  = h * 42 / 100;
+    int reelCy = labelY + labelH + (h - (labelY + labelH)) / 2 - 4;
+    int winH   = rsize + 14;
+    lv_obj_t *win = lv_obj_create(cass);
+    lv_obj_set_size(win, w * 76 / 100, winH);
+    lv_obj_set_pos(win, w * 12 / 100, reelCy - winH / 2);
+    lv_obj_clear_flag(win, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(win, lv_color_hex(0x0A0605), 0);
+    lv_obj_set_style_bg_opa(win, 255, 0);
+    lv_obj_set_style_border_color(win, lv_color_hex(0x37291E), 0);
+    lv_obj_set_style_border_width(win, 1, 0);
+    lv_obj_set_style_radius(win, 8, 0);
+    lv_obj_set_style_pad_all(win, 0, 0);
+
+    int leftCx  = w * 30 / 100;
+    int rightCx = w * 70 / 100;
+    // Exposed tape spanning between the two hubs
+    lv_obj_t *tape = lv_obj_create(cass);
+    lv_obj_set_size(tape, rightCx - leftCx, 5);
+    lv_obj_set_pos(tape, leftCx, reelCy - 2);
+    lv_obj_clear_flag(tape, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(tape, lv_color_hex(0x4A3320), 0);
+    lv_obj_set_style_bg_opa(tape, 255, 0);
+    lv_obj_set_style_border_width(tape, 0, 0);
+    lv_obj_set_style_radius(tape, 0, 0);
+
+    cass_reel(cass, leftCx,  reelCy, rsize);
+    cass_reel(cass, rightCx, reelCy, rsize);
+
+    // Bottom alignment holes (the little row along a cassette's lower edge)
+    for (int k = -2; k <= 2; k++)
+        cass_circle(cass, w / 2 + k * 16, h - 14, 6, 0x0A0605, 0, 0);
+
     return cass;
 }
 
-// ─── Pulsing pilot lamp animation ───────────────────────────────────────────
-static void lamp_opa_anim_cb(void *obj, int32_t v) {
-    lv_obj_set_style_bg_opa((lv_obj_t *)obj, (lv_opa_t)v, LV_PART_MAIN | LV_STATE_DEFAULT);
-}
-
+// ─── Pilot lamp ──────────────────────────────────────────────────────────────
+// IMPORTANT: this used to run an INFINITE opacity animation to "pulse" the lamp.
+// On this RGB panel the LVGL display is full_refresh=1, so every animation frame
+// re-pushes the ENTIRE 800x480 framebuffer into the continuously-scanned panel
+// memory — and because screens are never destroyed, the pulse kept running on
+// hidden Recording/Playback screens forever, forcing a full-frame repaint
+// ~30x/sec on whatever screen was actually visible. That is the on-tap/idle
+// "glitch" (tearing). The lamp is now a SOLID indicator: liveness is shown by
+// the topbar colour (red=rec, green=play), the live VU meter, and the timer —
+// none of which churn the whole screen when idle.
 void ltw_pulse_lamp(lv_obj_t *lamp, uint32_t period_ms) {
+    (void)period_ms;
     if (!lamp) return;
-    lv_anim_del(lamp, lamp_opa_anim_cb);    // cancel any prior pulse on this lamp
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, lamp);
-    lv_anim_set_exec_cb(&a, lamp_opa_anim_cb);
-    lv_anim_set_values(&a, 255, 70);
-    lv_anim_set_time(&a, period_ms / 2);
-    lv_anim_set_playback_time(&a, period_ms / 2);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&a);
+    lv_obj_set_style_bg_opa(lamp, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
 void ltw_stop_lamp_pulse(lv_obj_t *lamp) {
     if (!lamp) return;
-    lv_anim_del(lamp, lamp_opa_anim_cb);
     lv_obj_set_style_bg_opa(lamp, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
@@ -254,8 +350,8 @@ void ltw_picker_header(lv_obj_t *parent,
     lv_obj_set_style_text_color(cll, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(cll, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_center(cll);
-    if (on_close) {
-        lv_obj_add_event_cb(cl, on_close, LV_EVENT_PRESSED, NULL);
-        lv_obj_add_event_cb(cl, on_close, LV_EVENT_CLICKED, NULL);
-    }
+    // CLICKED only. Previously this also bound LV_EVENT_PRESSED, so each tap
+    // fired the close/navigation callback twice (once on touch-down, once on
+    // release) — a double screen-change landmine.
+    if (on_close) lv_obj_add_event_cb(cl, on_close, LV_EVENT_CLICKED, NULL);
 }
