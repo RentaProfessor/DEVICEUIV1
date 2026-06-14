@@ -40,6 +40,16 @@
 // No external I/O-expander libraries needed for the preliminary build —
 // we talk to every I2C peripheral (backlight, MCP23017) directly through Wire.
 
+// ─── DEV MODE ────────────────────────────────────────────────────────────────
+// Set to 1 to walk every screen ON-DEVICE WITHOUT the app: boot skips
+// pairing/BLE/cloud/WiFi, lands on Screen1, and overlays ‹ / › arrows on LVGL's
+// top layer (so they float above every screen and survive screen changes) to
+// step through all 14 screens. In dev mode Screen5/Screen7 do NOT start real
+// recording/playback — pure UI so you can restyle freely. Set back to 0 for a
+// production build.
+#define LT_DEV_MODE 1
+extern "C" { int g_dev_mode = LT_DEV_MODE; }
+
 LGFX gfx;
 
 // ─── LVGL plumbing ──────────────────────────────────────────────────────────
@@ -273,6 +283,133 @@ static void wire_existing_screens() {
 }
 
 // ─── Setup / loop ──────────────────────────────────────────────────────────
+// Build the cream QR pairing card on Screen1 (used by the normal first-run
+// pairing flow and by dev mode so Screen1 shows its real content for styling).
+static void build_pairing_card() {
+    if (!ui_Screen1) return;
+    // Hide the static QR-card placeholder image — we draw our own card + QR.
+    if (ui_Image1) lv_obj_add_flag(ui_Image1, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *card = lv_obj_create(ui_Screen1);
+    lv_obj_set_size(card, 280, 320);
+    lv_obj_align(card, LV_ALIGN_RIGHT_MID, -30, 0);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(card, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(card, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(card, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(card, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(card, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(card, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_t *qr = lv_qrcode_create(card, 210,
+                                    lv_color_hex(0x2A1A12),
+                                    lv_color_hex(0xF6ECD4));
+    lv_obj_align(qr, LV_ALIGN_TOP_MID, 0, 16);
+    const char *url = pairing_get_qr_url();
+    lv_qrcode_update(qr, url, strlen(url));
+
+    lv_obj_t *cap = lv_label_create(card);
+    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 250);
+    lv_label_set_text(cap, "SCAN WITH APP");
+    lv_obj_set_style_text_color(cap, lv_color_hex(0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(cap, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(cap, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_t *did = lv_label_create(card);
+    lv_obj_align(did, LV_ALIGN_TOP_MID, 0, 278);
+    lv_label_set_text(did, pairing_get_device_id());
+    lv_obj_set_style_text_color(did, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(did, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_letter_space(did, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+#if LT_DEV_MODE
+// ─── DEV MODE on-screen navigator ────────────────────────────────────────────
+// A ‹ S/N name › pill on lv_layer_top() that steps through every screen.
+typedef struct { lv_obj_t **scr; void (*init)(void); const char *name; } dev_screen_t;
+static const dev_screen_t DEV_SCREENS[] = {
+    {&ui_Screen1,  ui_Screen1_screen_init,  "Pairing"},
+    {&ui_Screen2,  ui_Screen2_screen_init,  "Setup OK"},
+    {&ui_Screen3,  ui_Screen3_screen_init,  "Name Book"},
+    {&ui_Screen4,  ui_Screen4_screen_init,  "Ready"},
+    {&ui_Screen5,  ui_Screen5_screen_init,  "Recording"},
+    {&ui_Screen6,  ui_Screen6_screen_init,  "Stopped"},
+    {&ui_Screen7,  ui_Screen7_screen_init,  "Playback"},
+    {&ui_Screen8,  ui_Screen8_screen_init,  "Books"},
+    {&ui_Screen9,  ui_Screen9_screen_init,  "AI Notes"},
+    {&ui_Screen10, ui_Screen10_screen_init, "Chapters"},
+    {&ui_Screen11, ui_Screen11_screen_init, "Volume"},
+    {&ui_Screen12, ui_Screen12_screen_init, "Error"},
+    {&ui_Screen13, ui_Screen13_screen_init, "Chapter+"},
+    {&ui_Screen14, ui_Screen14_screen_init, "Settings"},
+};
+static const int DEV_SCREEN_COUNT = sizeof(DEV_SCREENS) / sizeof(DEV_SCREENS[0]);
+static int       g_dev_idx   = 0;
+static lv_obj_t *g_dev_label = NULL;
+
+static void dev_goto(int idx) {
+    if (idx < 0) idx = DEV_SCREEN_COUNT - 1;
+    if (idx >= DEV_SCREEN_COUNT) idx = 0;
+    g_dev_idx = idx;
+    const dev_screen_t *d = &DEV_SCREENS[idx];
+    _ui_screen_change(d->scr, LV_SCR_LOAD_ANIM_NONE, 0, 0, d->init);
+    if (g_dev_label) {
+        char buf[40];
+        snprintf(buf, sizeof(buf), "S%d  %s", idx + 1, d->name);
+        lv_label_set_text(g_dev_label, buf);
+    }
+    Serial.printf("[dev] -> Screen%d (%s)\n", idx + 1, d->name);
+}
+
+static void dev_prev_cb(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) dev_goto(g_dev_idx - 1); }
+static void dev_next_cb(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) dev_goto(g_dev_idx + 1); }
+
+static lv_obj_t *dev_make_arrow(lv_obj_t *parent, const char *sym, lv_event_cb_t cb) {
+    lv_obj_t *b = lv_btn_create(parent);
+    lv_obj_set_size(b, 46, 30);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x241A12), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(b, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(b, lv_color_hex(0xC89060), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(b, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(b, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_t *l = lv_label_create(b);
+    lv_label_set_text(l, sym);   // LV_SYMBOL_* uses the default font (has glyphs)
+    lv_obj_set_style_text_color(l, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_center(l);
+    lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, NULL);
+    return b;
+}
+
+static void dev_overlay_create(void) {
+    // The top layer floats above every screen and persists across screen loads,
+    // so the navigator stays put no matter which screen is showing.
+    lv_obj_t *top = lv_layer_top();
+    lv_obj_clear_flag(top, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *bar = lv_obj_create(top);
+    lv_obj_set_size(bar, 250, 38);
+    lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 2);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(0x0E0A08), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(bar, 215, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(bar, lv_color_hex(0xC89060), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(bar, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(bar, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(bar, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_t *prev = dev_make_arrow(bar, LV_SYMBOL_LEFT, dev_prev_cb);
+    lv_obj_align(prev, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *next = dev_make_arrow(bar, LV_SYMBOL_RIGHT, dev_next_cb);
+    lv_obj_align(next, LV_ALIGN_RIGHT_MID, 0, 0);
+
+    g_dev_label = lv_label_create(bar);
+    lv_obj_align(g_dev_label, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_text_color(g_dev_label, lv_color_hex(0xE8C9A0), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(g_dev_label, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_label_set_text(g_dev_label, "S1  Pairing");
+}
+#endif  // LT_DEV_MODE
+
 void setup() {
     Serial.begin(115200);
     Serial.println("[LegacyTape] booting");
@@ -349,6 +486,14 @@ void setup() {
     // deliver WiFi credentials back to the device.
     pairing_begin();
 
+#if LT_DEV_MODE
+    // Dev mode: skip pairing/BLE/cloud/WiFi entirely. Render Screen1 (with its
+    // real QR card) and float the ‹ › navigator so every screen is reachable.
+    Serial.println("[LegacyTape] DEV MODE — pairing skipped; step screens with the on-screen arrows");
+    build_pairing_card();
+    _ui_screen_change(&ui_Screen1, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen1_screen_init);
+    dev_overlay_create();
+#else
     if (pairing_is_complete()) {
         // Device is already set up — skip the QR/pairing/onboarding flow
         // entirely and boot straight to the Ready home screen.
@@ -389,53 +534,9 @@ void setup() {
     } else if (ui_Screen1) {
         // First-time setup: advertise the BLE pairing service + render the QR.
         pairing_ble_begin();
-
-        // Hide the static QR-card placeholder image — we draw our own card + QR.
-        if (ui_Image1) lv_obj_add_flag(ui_Image1, LV_OBJ_FLAG_HIDDEN);
-
-        // Cream card on the right side of Screen1. Sized to fit QR + 2 labels
-        // with even visual breathing room top-to-bottom.
-        lv_obj_t *card = lv_obj_create(ui_Screen1);
-        lv_obj_set_size(card, 280, 320);
-        lv_obj_align(card, LV_ALIGN_RIGHT_MID, -30, 0);
-        lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(card, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(card, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(card, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(card, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(card, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(card, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-        // QR code positioned with explicit offsets so spacing is predictable
-        // regardless of LVGL flex/padding behavior.
-        // Card is 320 tall. Layout target:
-        //   16 px top margin
-        //   210 px QR
-        //   24 px gap
-        //   ~22 px "SCAN WITH APP"
-        //   ~18 px "LT-XXXXXX"
-        //   30 px bottom margin
-        lv_obj_t *qr = lv_qrcode_create(card, 210,
-                                        lv_color_hex(0x2A1A12),
-                                        lv_color_hex(0xF6ECD4));
-        lv_obj_align(qr, LV_ALIGN_TOP_MID, 0, 16);
-        const char *url = pairing_get_qr_url();
-        lv_qrcode_update(qr, url, strlen(url));
-
-        lv_obj_t *cap = lv_label_create(card);
-        lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 250);
-        lv_label_set_text(cap, "SCAN WITH APP");
-        lv_obj_set_style_text_color(cap, lv_color_hex(0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(cap, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_letter_space(cap, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-        lv_obj_t *did = lv_label_create(card);
-        lv_obj_align(did, LV_ALIGN_TOP_MID, 0, 278);
-        lv_label_set_text(did, pairing_get_device_id());
-        lv_obj_set_style_text_color(did, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_font(did, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_text_letter_space(did, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
+        build_pairing_card();
     }
+#endif  // LT_DEV_MODE
 
     Serial.println("[LegacyTape] ready");
 }

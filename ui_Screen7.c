@@ -182,8 +182,9 @@ void ui_Screen7_screen_init(void) {
     snprintf(chnum, sizeof(chnum), "CHAPTER %02d", ach + 1);
     ltw_chapter_banner(ui_Screen7, chnum, acn ? acn : "Chapter 1", s7_to_chapter, s7_to_book);
 
-    // Kick off streaming playback of the active chapter's recording
-    audio_playback_start(ach);
+    // Kick off streaming playback of the active chapter's recording.
+    // Skipped in dev mode — the screen is shown for styling only.
+    if (!g_dev_mode) audio_playback_start(ach);
     if (!s7_ticker) s7_ticker = lv_timer_create(s7_tick, 250, NULL);
 }
 

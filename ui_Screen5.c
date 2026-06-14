@@ -116,11 +116,15 @@ void ui_Screen5_screen_init(void) {
     // Auto-start recording when the screen is entered.
     // Reset the uploader's per-recording counters first so last take's
     // uploaded-count/error don't leak into this session.
-    audio_upload_reset();
-    if (audio_record_start()) {
-        printf("[S5] mic capture started\n");
-    } else {
-        printf("[S5] mic capture failed to start\n");
+    // In dev mode we only render the screen (no mic/upload) so it can be paged
+    // through for styling without side effects.
+    if (!g_dev_mode) {
+        audio_upload_reset();
+        if (audio_record_start()) {
+            printf("[S5] mic capture started\n");
+        } else {
+            printf("[S5] mic capture failed to start\n");
+        }
     }
     if (!s5_ticker) s5_ticker = lv_timer_create(s5_tick, 60, NULL);
 }

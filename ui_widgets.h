@@ -8,6 +8,10 @@ extern "C" {
 
 #include "ui.h"
 
+// Dev mode flag (defined in the .ino). When non-zero, screens skip real side
+// effects (mic, upload, playback) so the UI can be paged through for styling.
+extern int g_dev_mode;
+
 // Lamp/status colors per spec
 #define LT_BG          0xC89060
 #define LT_INK         0xF6ECD4
