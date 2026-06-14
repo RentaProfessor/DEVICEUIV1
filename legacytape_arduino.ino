@@ -269,14 +269,6 @@ static void s2_button_debug(lv_event_t *e) {
     else if (code == LV_EVENT_CLICKED)   Serial.println("[debug] Screen2 button CLICKED (should advance to Screen3)");
 }
 
-// Live-update the cassette-label preview card on Screen3 as the user types.
-static void s3_name_changed(lv_event_t *e) {
-    (void)e;
-    if (!ui_BookPreview || !ui_TextArea1) return;
-    const char *t = lv_textarea_get_text(ui_TextArea1);
-    lv_label_set_text(ui_BookPreview, (t && *t) ? t : "Untitled");
-}
-
 static void wire_existing_screens() {
     // NOTE: Screen1 used to have a "tap anywhere to advance" shortcut (s1_advance)
     // for dev testing. Removed — it meant picking up the device registered a
@@ -285,7 +277,6 @@ static void wire_existing_screens() {
     if (ui_Screen3 && ui_Keyboard2) {
         lv_keyboard_set_textarea(ui_Keyboard2, ui_TextArea1);
         lv_obj_add_event_cb(ui_Keyboard2, s3_kb_done, LV_EVENT_ALL, NULL);
-        lv_obj_add_event_cb(ui_TextArea1, s3_name_changed, LV_EVENT_VALUE_CHANGED, NULL);
     }
     // Diagnostic: log all events on Screen2's button so we know if taps register
     if (ui_Button1) lv_obj_add_event_cb(ui_Button1, s2_button_debug, LV_EVENT_ALL, NULL);

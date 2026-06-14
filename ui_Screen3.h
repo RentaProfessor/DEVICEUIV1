@@ -17,7 +17,6 @@ extern lv_obj_t *ui_Screen3;
 extern lv_obj_t *ui_WelcomeLabel3;
 extern lv_obj_t *ui_Keyboard2;
 extern lv_obj_t *ui_TextArea1;
-extern lv_obj_t *ui_BookPreview;   // live name preview on the cassette card
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

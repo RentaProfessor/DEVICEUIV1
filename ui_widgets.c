@@ -376,9 +376,9 @@ extern const lv_img_dsc_t *cassette_reels[];
 extern const int           cassette_reel_count;
 #define HERO_W    477
 #define HERO_LCX  141   // reel centres in the artwork (auto-detected)
-#define HERO_RCX  318
+#define HERO_RCX  310
 #define HERO_CY   116
-#define HERO_REEL 78    // reel sprite size
+#define HERO_REEL 76    // reel sprite size (white-ring diameter)
 
 typedef struct {
     lv_obj_t   *reel[2];
