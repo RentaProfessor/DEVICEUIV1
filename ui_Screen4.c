@@ -98,7 +98,7 @@ void ui_Screen4_screen_init(void) {
     lv_obj_set_width(ui_S4_BookTitle, 320);
     lv_label_set_long_mode(ui_S4_BookTitle, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(ui_S4_BookTitle, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_align(ui_S4_BookTitle, LV_ALIGN_TOP_MID, 28, 27);
+    lv_obj_align(ui_S4_BookTitle, LV_ALIGN_TOP_MID, 0, 31);
     lv_label_set_text(ui_S4_BookTitle, book_get_name());
     lv_obj_set_style_text_color(ui_S4_BookTitle, lv_color_hex(0x2A2E3A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_S4_BookTitle, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);

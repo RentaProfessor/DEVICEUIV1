@@ -92,7 +92,7 @@ void ui_Screen7_screen_init(void) {
     lv_obj_set_width(s7_status, 320);
     lv_label_set_long_mode(s7_status, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(s7_status, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_align(s7_status, LV_ALIGN_TOP_MID, 28, 27);
+    lv_obj_align(s7_status, LV_ALIGN_TOP_MID, 0, 31);
     lv_label_set_text(s7_status, "LOADING");
     lv_obj_set_style_text_color(s7_status, lv_color_hex(0x1E7A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(s7_status, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);

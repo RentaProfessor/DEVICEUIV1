@@ -409,7 +409,7 @@ lv_obj_t *ltw_cassette_hero(lv_obj_t *parent, int y, const char *label,
         lv_obj_set_width(lab, 320);
         lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(lab, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(lab, LV_ALIGN_TOP_MID, 28, 27);
+        lv_obj_align(lab, LV_ALIGN_TOP_MID, 0, 31);
         lv_label_set_text(lab, label);
         lv_obj_set_style_text_color(lab, lv_color_hex(label_color), 0);
         lv_obj_set_style_text_font(lab, &ui_font_Arhivo_regular_22, 0);
