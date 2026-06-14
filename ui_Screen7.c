@@ -28,12 +28,12 @@ static void s7_vol_up(lv_event_t *e) {
     s7_vol_refresh();
 }
 
-static void s7_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init); }
-static void s7_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init); }
+static void s7_to_chapter(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen10_screen_init); }
+static void s7_to_book(lv_event_t *e)    { if (lv_event_get_code(e) == LV_EVENT_CLICKED) _ui_screen_change(&ui_Screen8,  LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen8_screen_init); }
 static void s7_stop(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     audio_playback_stop();
-    _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+    _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen4_screen_init);
 }
 
 static void fmt_mmss(uint32_t s, char *out, size_t n) {

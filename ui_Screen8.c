@@ -7,21 +7,21 @@ lv_obj_t *ui_Screen8 = NULL;
 static void s8_close(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED) {
         printf("[debug] S8 CANCEL -> Screen4\n");
-        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen4_screen_init);
     }
 }
 
 // Tap the current book → it's already active, just go back to Ready
 static void s8_pick_current(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen4_screen_init);
 }
 
 // NEW BOOK → keyboard (Screen3). For v1 this overwrites the current book
 // name when the user hits done — multi-book support is post-MVP.
 static void s8_newbook(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen3, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen3_screen_init);
+        _ui_screen_change(&ui_Screen3, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen3_screen_init);
 }
 
 void ui_Screen8_screen_init(void) {

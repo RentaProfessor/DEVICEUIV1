@@ -361,7 +361,7 @@ static void dev_goto(int idx) {
     if (idx >= DEV_SCREEN_COUNT) idx = 0;
     g_dev_idx = idx;
     const dev_screen_t *d = &DEV_SCREENS[idx];
-    _ui_screen_change(d->scr, LV_SCR_LOAD_ANIM_NONE, 0, 0, d->init);
+    _ui_screen_change(d->scr, LV_SCR_LOAD_ANIM_NONE, 1, 0, d->init);   // spd=1 -> smooth fade (so dev stepping shows the transition)
     if (g_dev_label) {
         char buf[40];
         snprintf(buf, sizeof(buf), "S%d  %s", idx + 1, d->name);

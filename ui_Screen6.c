@@ -13,19 +13,19 @@ static lv_timer_t *s6_ticker       = NULL;
 
 static void s6_to_chapter(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init);
+        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen10_screen_init);
 }
 static void s6_to_book(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init);
+        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen8_screen_init);
 }
 static void s6_to_rec(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen5, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen5_screen_init);
+        _ui_screen_change(&ui_Screen5, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen5_screen_init);
 }
 static void s6_to_play(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen7, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen7_screen_init);
+        _ui_screen_change(&ui_Screen7, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen7_screen_init);
 }
 
 static void s6_tick(lv_timer_t *t) {

@@ -9,7 +9,7 @@ static void s10_close(lv_event_t *e) {
     if (code == LV_EVENT_PRESSED)  printf("[debug] S10 CANCEL pressed\n");
     if (code == LV_EVENT_CLICKED) {
         printf("[debug] S10 CANCEL clicked -> Screen4\n");
-        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+        _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen4_screen_init);
     }
 }
 
@@ -18,7 +18,7 @@ static void s10_pick(lv_event_t *e) {
     // The user data stashed when the row was created is the chapter index
     intptr_t idx = (intptr_t)lv_event_get_user_data(e);
     book_set_active_chapter((int)idx);
-    _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen4_screen_init);
+    _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen4_screen_init);
 }
 
 static void s10_add_chapter(lv_event_t *e) {
@@ -28,7 +28,7 @@ static void s10_add_chapter(lv_event_t *e) {
         book_set_active_chapter(idx);
     }
     // Re-render Screen10 with the new chapter included by tearing it down + reinit
-    _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init);
+    _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen10_screen_init);
 }
 
 void ui_Screen10_screen_init(void) {

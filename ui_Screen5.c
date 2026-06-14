@@ -10,11 +10,11 @@ lv_obj_t *ui_S5_PilotLamp = NULL;
 
 static void s5_to_chapter(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen10_screen_init);
+        _ui_screen_change(&ui_Screen10, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen10_screen_init);
 }
 static void s5_to_book(lv_event_t *e) {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen8_screen_init);
+        _ui_screen_change(&ui_Screen8, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen8_screen_init);
 }
 
 // STOP button: stop capturing. Upload module finishes streaming the
@@ -26,7 +26,7 @@ static void s5_to_stopped(lv_event_t *e) {
     uint32_t secs = audio_record_seconds();
     audio_upload_request_finalize(secs, book_get_active_chapter());
     audio_record_stop();
-    _ui_screen_change(&ui_Screen6, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_Screen6_screen_init);
+    _ui_screen_change(&ui_Screen6, LV_SCR_LOAD_ANIM_NONE, 1, 0, &ui_Screen6_screen_init);
 }
 
 // Timer + live level/progress bar — runs every 60ms while Recording is visible.
