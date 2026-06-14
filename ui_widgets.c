@@ -79,11 +79,11 @@ lv_obj_t *ltw_chapter_banner(lv_obj_t *parent,
         lv_obj_t *b = lv_btn_create(banner);
         lv_obj_set_size(b, 160, 58);
         lv_obj_align(b, LV_ALIGN_RIGHT_MID, i == 0 ? -180 : -10, 0);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0xD4C090), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_grad_color(b, lv_color_hex(0xF3E3B8), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(b, lv_color_hex(LT_BTN_BG), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_grad_color(b, lv_color_hex(LT_BTN_PRESSED), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_grad_dir(b, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_set_style_border_color(b, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(b, lv_color_hex(LT_BTN_PRESSED), LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_border_color(b, lv_color_hex(LT_BTN_BORDER), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(b, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(b, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_t *l = lv_label_create(b);
@@ -105,8 +105,8 @@ void ltw_hw_legend(lv_obj_t *parent,
     const char    *caps[5] = {"REC", "PLAY", "RWD", "FF", "STOP"};
     const char    *lbls[5] = {lbl_rec,  lbl_play,  lbl_rwd,  lbl_ff,  lbl_stop};
     lv_event_cb_t  cbs[5]  = {cb_rec,   cb_play,   cb_rwd,   cb_ff,   cb_stop};
-    uint32_t       cs[5]   = {0xC83A2A, 0x2A4830,  0x3A2A18, 0x3A2A18, 0x2A2018};
-    uint32_t       cs_p[5] = {0x8A2418, 0x1A3020,  0x2A1E10, 0x2A1E10, 0x1A1410};  // pressed colors
+    uint32_t       cs[5]   = {0xC9302A, 0x2E6B45,  0x263250, 0x263250, 0x263250};  // REC red, PLAY green, rest navy
+    uint32_t       cs_p[5] = {0x8A2018, 0x1F4A30,  0x35466E, 0x35466E, 0x35466E};  // pressed
     // Bigger, more finger-friendly: 84x48 (vs old 50x26)
     const int W = 84, H = 48;
     const int y_caps = 332;
@@ -126,8 +126,8 @@ void ltw_hw_legend(lv_obj_t *parent,
         lv_obj_set_style_bg_opa(c, active ? 255 : 90, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(c, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(c, tappable ? 2 : 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(c, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_opa(c, 80, LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_color(c, lv_color_hex(LT_BTN_BORDER), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_border_opa(c, 120, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_pad_all(c, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
         if (tappable) lv_obj_add_event_cb(c, cbs[i], LV_EVENT_CLICKED, NULL);
 
@@ -458,7 +458,7 @@ void ltw_picker_header(lv_obj_t *parent,
     lv_obj_t *eb = lv_label_create(parent);
     lv_obj_set_pos(eb, 26, 18);
     lv_label_set_text(eb, eyebrow);
-    lv_obj_set_style_text_color(eb, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(eb, lv_color_hex(LT_INK_DIM), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(eb, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_letter_space(eb, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -471,14 +471,14 @@ void ltw_picker_header(lv_obj_t *parent,
     lv_obj_t *cl = lv_btn_create(parent);
     lv_obj_set_size(cl, 140, 46);
     lv_obj_align(cl, LV_ALIGN_TOP_RIGHT, -20, 16);
-    lv_obj_set_style_bg_color(cl, lv_color_hex(0x2A1D14), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(cl, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(cl, lv_color_hex(0x0A0604), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(cl, lv_color_hex(LT_BTN_BG), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(cl, lv_color_hex(LT_BTN_PRESSED), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(cl, lv_color_hex(LT_BTN_BORDER), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(cl, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(cl, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_t *cll = lv_label_create(cl);
     lv_label_set_text(cll, close_label);
-    lv_obj_set_style_text_color(cll, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(cll, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(cll, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_center(cll);
     // CLICKED only. Previously this also bound LV_EVENT_PRESSED, so each tap

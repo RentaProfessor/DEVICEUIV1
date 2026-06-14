@@ -19,9 +19,9 @@ void ui_Screen14_screen_init(void) {
         {LT_GREEN, "WIFI",        "LegacyHome_5G"},
         {LT_GREEN, "STORAGE",     "12.4 GB FREE"},
         {LT_AMBER, "INPUT LEVEL", "-14 dBFS"},
-        {0x2A1E16, "VOLUME",      "7 / 10"},
-        {0x2A1E16, "FIRMWARE",    "v0.9.2-beta"},
-        {0x2A1E16, "DEVICE ID",   "LT-0042"},
+        {0x46587E, "VOLUME",      "7 / 10"},
+        {0x46587E, "FIRMWARE",    "v0.9.2-beta"},
+        {0x46587E, "DEVICE ID",   "LT-0042"},
     };
 
     for (int i = 0; i < 6; i++) {

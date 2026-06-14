@@ -124,9 +124,9 @@ void ui_Screen7_screen_init(void) {
     lv_obj_t *volDown = lv_btn_create(ui_Screen7);
     lv_obj_set_size(volDown, 96, BTN_H);
     lv_obj_set_pos(volDown, 70, ROW_Y);
-    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x2A1D14), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(volDown, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volDown, lv_color_hex(0x35466E), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(volDown, lv_color_hex(0x46587E), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(volDown, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(volDown, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_t *vdl = lv_label_create(volDown);
@@ -147,9 +147,9 @@ void ui_Screen7_screen_init(void) {
     lv_obj_t *volUp = lv_btn_create(ui_Screen7);
     lv_obj_set_size(volUp, 96, BTN_H);
     lv_obj_set_pos(volUp, 338, ROW_Y);
-    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x2A1D14), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x4A3428), LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(volUp, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(volUp, lv_color_hex(0x35466E), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(volUp, lv_color_hex(0x46587E), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(volUp, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(volUp, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_t *vul = lv_label_create(volUp);

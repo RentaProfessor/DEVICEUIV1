@@ -40,7 +40,7 @@ void ui_Screen12_screen_init(void) {
     lv_obj_set_size(err, 780, 60);
     lv_obj_set_pos(err, 10, 330);
     lv_obj_clear_flag(err, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(err, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(err, lv_color_hex(0x1E2740), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(err, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(err, lv_color_hex(LT_AMBER), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(err, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -57,13 +57,13 @@ void ui_Screen12_screen_init(void) {
     lv_obj_t *es = lv_label_create(err);
     lv_obj_set_pos(es, 14, 28);
     lv_label_set_text(es, "Keep recording. We'll sync when you're back online.");
-    lv_obj_set_style_text_color(es, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(es, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(es, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t *retry = lv_btn_create(err);
     lv_obj_set_size(retry, 100, 40);
     lv_obj_align(retry, LV_ALIGN_RIGHT_MID, -4, 0);
-    lv_obj_set_style_bg_color(retry, lv_color_hex(LT_BURGUNDY), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(retry, lv_color_hex(0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(retry, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(retry, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_t *retryL = lv_label_create(retry);

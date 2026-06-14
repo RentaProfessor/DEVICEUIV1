@@ -59,7 +59,7 @@ void ui_Screen10_screen_init(void) {
         lv_obj_t *row = lv_btn_create(list);
         lv_obj_set_size(row, 720, 56);
         lv_obj_set_pos(row, 0, i * 64);
-        lv_obj_set_style_bg_color(row, lv_color_hex(is_active ? LT_BURGUNDY : LT_PANEL_DARK), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(row, lv_color_hex(is_active ? 0x35466E : LT_PANEL_DARK), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_opa(row, is_active ? 255 : 200, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_color(row, lv_color_hex(is_active ? LT_INK : LT_RULE), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(row, is_active ? 2 : 1, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -97,9 +97,9 @@ void ui_Screen10_screen_init(void) {
     lv_obj_t *addBtn = lv_btn_create(ui_Screen10);
     lv_obj_set_size(addBtn, 748, 56);
     lv_obj_set_pos(addBtn, 26, 396);
-    lv_obj_set_style_bg_color(addBtn, lv_color_hex(LT_RED_CTA), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(addBtn, lv_color_hex(LT_BURGUNDY), LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(addBtn, lv_color_hex(0x5A1A0A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(addBtn, lv_color_hex(0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(addBtn, lv_color_hex(0x35466E), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(addBtn, lv_color_hex(0x46587E), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(addBtn, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(addBtn, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_add_event_cb(addBtn, s10_add_chapter, LV_EVENT_CLICKED, NULL);

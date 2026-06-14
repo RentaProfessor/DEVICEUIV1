@@ -18,9 +18,9 @@ void ui_Screen13_screen_init(void) {
     lv_obj_t *pill = lv_btn_create(ui_Screen13);
     lv_obj_set_size(pill, 320, 36);
     lv_obj_align(pill, LV_ALIGN_TOP_MID, 0, 64);
-    lv_obj_set_style_bg_color(pill, lv_color_hex(LT_INK_DIM), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(pill, lv_color_hex(0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(pill, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(pill, lv_color_hex(LT_BURGUNDY), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(pill, lv_color_hex(0x46587E), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(pill, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(pill, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_t *pillL = lv_label_create(pill);

@@ -12,20 +12,24 @@ extern "C" {
 // effects (mic, upload, playback) so the UI can be paged through for styling.
 extern int g_dev_mode;
 
-// Lamp/status colors per spec
-#define LT_BG          0xC89060
-#define LT_INK         0xF6ECD4
-#define LT_INK_DIM     0xE8D6A8
-#define LT_ACCENT      0xC89060
-#define LT_PANEL_DARK  0x1A1410
-#define LT_PANEL_DK2   0x1E1610
-#define LT_RULE        0x5A3424
-#define LT_BURGUNDY    0x8A3024
-#define LT_RED         0xE53935
-#define LT_RED_CTA     0xC94A2A
-#define LT_GREEN       0x4AC06A
-#define LT_AMBER       0xE5B03A
-#define LT_INK_DARK    0x2A1A12
+// ── Navy theme (sampled from the cassette artwork so all chrome matches it) ──
+#define LT_BG          0x161C2A   // deep navy = cassette art background
+#define LT_INK         0xF4EEDD   // cream primary text = cassette label
+#define LT_INK_DIM     0x90A4C0   // muted slate-blue secondary text
+#define LT_ACCENT      0xE26A48   // sunset orange = cassette stripe
+#define LT_PANEL_DARK  0x1E2740   // slate panel (top of gradient)
+#define LT_PANEL_DK2   0x18202F   // slate panel (bottom of gradient)
+#define LT_RULE        0x33405C   // panel border = cassette navy edge
+#define LT_BURGUNDY    0x8A3024   // (kept; re-skinned per call site)
+#define LT_RED         0xE53935   // semantic: record
+#define LT_RED_CTA     0xC94A2A   // (kept; re-skinned per call site)
+#define LT_GREEN       0x4AC06A   // semantic: ok / play / AI
+#define LT_AMBER       0xE5B03A   // semantic: warning / ready
+#define LT_INK_DARK    0xF4EEDD   // button label on navy buttons -> cream
+// Navy button tokens
+#define LT_BTN_BG      0x263250
+#define LT_BTN_PRESSED 0x35466E
+#define LT_BTN_BORDER  0x46587E
 
 // Builds the 780x44 top bar at (10,10). Returns container; also sets out_status, out_timer.
 lv_obj_t *ltw_topbar(lv_obj_t *parent,

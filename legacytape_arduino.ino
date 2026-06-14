@@ -269,6 +269,14 @@ static void s2_button_debug(lv_event_t *e) {
     else if (code == LV_EVENT_CLICKED)   Serial.println("[debug] Screen2 button CLICKED (should advance to Screen3)");
 }
 
+// Live-update the cassette-label preview card on Screen3 as the user types.
+static void s3_name_changed(lv_event_t *e) {
+    (void)e;
+    if (!ui_BookPreview || !ui_TextArea1) return;
+    const char *t = lv_textarea_get_text(ui_TextArea1);
+    lv_label_set_text(ui_BookPreview, (t && *t) ? t : "Untitled");
+}
+
 static void wire_existing_screens() {
     // NOTE: Screen1 used to have a "tap anywhere to advance" shortcut (s1_advance)
     // for dev testing. Removed — it meant picking up the device registered a
@@ -277,6 +285,7 @@ static void wire_existing_screens() {
     if (ui_Screen3 && ui_Keyboard2) {
         lv_keyboard_set_textarea(ui_Keyboard2, ui_TextArea1);
         lv_obj_add_event_cb(ui_Keyboard2, s3_kb_done, LV_EVENT_ALL, NULL);
+        lv_obj_add_event_cb(ui_TextArea1, s3_name_changed, LV_EVENT_VALUE_CHANGED, NULL);
     }
     // Diagnostic: log all events on Screen2's button so we know if taps register
     if (ui_Button1) lv_obj_add_event_cb(ui_Button1, s2_button_debug, LV_EVENT_ALL, NULL);
@@ -296,7 +305,7 @@ static void build_pairing_card() {
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(card, lv_color_hex(0xF6ECD4), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(card, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(card, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(card, lv_color_hex(0x33405C), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(card, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(card, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(card, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -318,7 +327,7 @@ static void build_pairing_card() {
     lv_obj_t *did = lv_label_create(card);
     lv_obj_align(did, LV_ALIGN_TOP_MID, 0, 278);
     lv_label_set_text(did, pairing_get_device_id());
-    lv_obj_set_style_text_color(did, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(did, lv_color_hex(0x33405C), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(did, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_letter_space(did, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
 }

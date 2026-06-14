@@ -21,7 +21,7 @@ void ui_Screen2_screen_init(void)
 {
 ui_Screen2 = lv_obj_create(NULL);
 lv_obj_clear_flag( ui_Screen2, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
-lv_obj_set_style_bg_color(ui_Screen2, lv_color_hex(0x3A8B95), LV_PART_MAIN | LV_STATE_DEFAULT );
+lv_obj_set_style_bg_color(ui_Screen2, lv_color_hex(0x161C2A), LV_PART_MAIN | LV_STATE_DEFAULT );
 lv_obj_set_style_bg_opa(ui_Screen2, 255, LV_PART_MAIN| LV_STATE_DEFAULT);
 
 ui_WelcomeLabel2 = lv_label_create(ui_Screen2);
@@ -31,7 +31,7 @@ lv_obj_set_x( ui_WelcomeLabel2, -189 );
 lv_obj_set_y( ui_WelcomeLabel2, -37 );
 lv_obj_set_align( ui_WelcomeLabel2, LV_ALIGN_CENTER );
 lv_label_set_text(ui_WelcomeLabel2,"Your device \nis set up.");
-lv_obj_set_style_text_color(ui_WelcomeLabel2, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT );
+lv_obj_set_style_text_color(ui_WelcomeLabel2, lv_color_hex(0xF4EEDD), LV_PART_MAIN | LV_STATE_DEFAULT );
 lv_obj_set_style_text_opa(ui_WelcomeLabel2, 255, LV_PART_MAIN| LV_STATE_DEFAULT);
 lv_obj_set_style_text_align(ui_WelcomeLabel2, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN| LV_STATE_DEFAULT);
 lv_obj_set_style_text_font(ui_WelcomeLabel2, &ui_font_archivo_50, LV_PART_MAIN| LV_STATE_DEFAULT);
@@ -50,6 +50,7 @@ lv_img_set_zoom(ui_Image2,150);
 ui_smallerlabel2 = ui_smallerlabel_create(ui_Screen2);
 lv_obj_set_x( ui_smallerlabel2, 32 );
 lv_obj_set_y( ui_smallerlabel2, 45 );
+lv_obj_set_style_text_color(ui_smallerlabel2, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
 lv_label_set_text(ui_smallerlabel2,"Give your first book a name.");
 
 ui_Button1 = lv_btn_create(ui_Screen2);
@@ -60,10 +61,12 @@ lv_obj_set_y( ui_Button1, 117 );
 lv_obj_set_align( ui_Button1, LV_ALIGN_CENTER );
 lv_obj_add_flag( ui_Button1, LV_OBJ_FLAG_SCROLL_ON_FOCUS );   /// Flags
 lv_obj_clear_flag( ui_Button1, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
-lv_obj_set_style_bg_color(ui_Button1, lv_color_hex(0xE53935), LV_PART_MAIN | LV_STATE_DEFAULT );
+lv_obj_set_style_bg_color(ui_Button1, lv_color_hex(0xE26A48), LV_PART_MAIN | LV_STATE_DEFAULT );
 lv_obj_set_style_bg_opa(ui_Button1, 255, LV_PART_MAIN| LV_STATE_DEFAULT);
-lv_obj_set_style_bg_color(ui_Button1, lv_color_hex(0x8A3024), LV_PART_MAIN | LV_STATE_PRESSED );
+lv_obj_set_style_bg_color(ui_Button1, lv_color_hex(0xB6502F), LV_PART_MAIN | LV_STATE_PRESSED );
 lv_obj_set_style_bg_opa(ui_Button1, 255, LV_PART_MAIN| LV_STATE_PRESSED);
+lv_obj_set_style_radius(ui_Button1, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
+lv_obj_set_style_border_width(ui_Button1, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
 ui_Label1 = lv_label_create(ui_Button1);
 lv_obj_set_width( ui_Label1, LV_SIZE_CONTENT);  /// 1

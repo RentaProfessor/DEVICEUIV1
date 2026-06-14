@@ -46,11 +46,20 @@ void _ui_slider_set_property( lv_obj_t *target, int id, int val)
    if (id == _UI_SLIDER_PROPERTY_VALUE) lv_slider_set_value(target, val, LV_ANIM_OFF);
 }
 
-void _ui_screen_change( lv_obj_t ** target, lv_scr_load_anim_t fademode, int spd, int delay, void (*target_init)(void)) 
+void _ui_screen_change( lv_obj_t ** target, lv_scr_load_anim_t fademode, int spd, int delay, void (*target_init)(void))
 {
    if(*target == NULL)
       target_init();
-   lv_scr_load_anim(*target, fademode, spd, delay, false);
+   // Centralized transition policy. This is a full_refresh RGB panel: every
+   // redraw repaints the whole 800x480 framebuffer, so positional slides
+   // (MOVE_LEFT) are the expensive, jolting ones. Force ONE short cross-fade
+   // everywhere so navigation is consistently buttery — the shared navy bg +
+   // chrome positions make the fade read as seamless. spd==0 is the explicit
+   // "instant cut" sentinel (onboarding after BLE deinit; dev-mode navigator).
+   (void)fademode;
+   lv_scr_load_anim_t mode = (spd == 0) ? LV_SCR_LOAD_ANIM_NONE : LV_SCR_LOAD_ANIM_FADE_ON;
+   int dur = (spd == 0) ? 0 : 180;
+   lv_scr_load_anim(*target, mode, dur, delay, false);
 }
 
 void _ui_screen_delete( void (*target)(void) ) 

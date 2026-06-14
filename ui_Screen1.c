@@ -14,7 +14,7 @@ void ui_Screen1_screen_init(void)
 {
 ui_Screen1 = lv_obj_create(NULL);
 lv_obj_clear_flag( ui_Screen1, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
-lv_obj_set_style_bg_color(ui_Screen1, lv_color_hex(0x3A8B95), LV_PART_MAIN | LV_STATE_DEFAULT );
+lv_obj_set_style_bg_color(ui_Screen1, lv_color_hex(0x161C2A), LV_PART_MAIN | LV_STATE_DEFAULT );
 lv_obj_set_style_bg_opa(ui_Screen1, 255, LV_PART_MAIN| LV_STATE_DEFAULT);
 
 ui_Image1 = lv_img_create(ui_Screen1);
@@ -31,14 +31,17 @@ lv_img_set_zoom(ui_Image1,150);
 ui_WelcomeLabel = ui_WelcomeLabel_create(ui_Screen1);
 lv_obj_set_x( ui_WelcomeLabel, 42 );
 lv_obj_set_y( ui_WelcomeLabel, -24 );
+lv_obj_set_style_text_color(ui_WelcomeLabel, lv_color_hex(0xF4EEDD), LV_PART_MAIN | LV_STATE_DEFAULT);
 
 ui_smallerlabel = ui_smallerlabel_create(ui_Screen1);
 lv_obj_set_x( ui_smallerlabel, 31 );
 lv_obj_set_y( ui_smallerlabel, 101 );
+lv_obj_set_style_text_color(ui_smallerlabel, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
 
 ui_smallerlabel1 = ui_smallerlabel_create(ui_Screen1);
 lv_obj_set_x( ui_smallerlabel1, 31 );
 lv_obj_set_y( ui_smallerlabel1, 101 );
+lv_obj_set_style_text_color(ui_smallerlabel1, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
 
 }
 

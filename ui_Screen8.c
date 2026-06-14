@@ -48,8 +48,8 @@ void ui_Screen8_screen_init(void) {
         lv_obj_t *tile = lv_btn_create(ui_Screen8);
         lv_obj_set_size(tile, TILE_W, TILE_H);
         lv_obj_set_pos(tile, start_x, y);
-        lv_obj_set_style_bg_color(tile, lv_color_hex(0x1F1510), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_color(tile, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(tile, lv_color_hex(0x1E2740), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(tile, lv_color_hex(0x35466E), LV_PART_MAIN | LV_STATE_PRESSED);
         lv_obj_set_style_border_color(tile, lv_color_hex(LT_AMBER), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(tile, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(tile, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -61,7 +61,7 @@ void ui_Screen8_screen_init(void) {
         lv_obj_set_size(band, 248, 18);
         lv_obj_set_pos(band, 0, 0);
         lv_obj_clear_flag(band, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(band, lv_color_hex(0xE5853A), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(band, lv_color_hex(0xE26A48), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_opa(band, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(band, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(band, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -84,7 +84,7 @@ void ui_Screen8_screen_init(void) {
         lv_obj_t *d = lv_label_create(tile);
         lv_obj_set_pos(d, 0, 180);
         lv_label_set_text(d, info);
-        lv_obj_set_style_text_color(d, lv_color_hex(0xE8D6A8), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_text_color(d, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_text_font(d, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
         lv_obj_t *a = lv_label_create(tile);

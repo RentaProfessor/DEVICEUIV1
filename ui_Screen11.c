@@ -30,7 +30,7 @@ void ui_Screen11_screen_init(void) {
     lv_obj_clear_flag(toast, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(toast, lv_color_hex(LT_PANEL_DARK), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(toast, 245, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(toast, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(toast, lv_color_hex(0x33405C), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(toast, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(toast, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(toast, 24, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -49,7 +49,7 @@ void ui_Screen11_screen_init(void) {
         lv_obj_set_size(seg, 32, 28);
         lv_obj_set_pos(seg, i * 38, 50);
         lv_obj_clear_flag(seg, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(seg, lv_color_hex(i < level ? LT_INK_DIM : 0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
+        lv_obj_set_style_bg_color(seg, lv_color_hex(i < level ? 0xE26A48 : 0x263250), LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_bg_opa(seg, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_radius(seg, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
         lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -65,7 +65,7 @@ void ui_Screen11_screen_init(void) {
     lv_obj_t *hint = lv_label_create(toast);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_label_set_text(hint, "TURN ENCODER TO ADJUST");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(hint, lv_color_hex(0x90A4C0), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(hint, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
