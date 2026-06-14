@@ -67,6 +67,10 @@ lv_obj_t *ltw_cassette(lv_obj_t *parent,
                        const char *book_title,
                        const char *vu_tag);
 
+// Turn the cassette's reels spinning on/off (call on the Recording/Playback
+// screens). The reels animate only while their screen is on top.
+void ltw_cassette_set_spin(lv_obj_t *cass, bool on);
+
 // Picker header (used by Book Picker / Chapter Picker / Settings).
 void ltw_picker_header(lv_obj_t *parent,
                        const char *eyebrow,

@@ -76,7 +76,8 @@ void ui_Screen5_screen_init(void) {
     // Pulse the red RECORDING lamp — clear "we're live" animation
     ltw_pulse_lamp(ui_S5_PilotLamp, 1100);
 
-    ltw_cassette(ui_Screen5, 620, 200, -36, book_get_name(), NULL);
+    lv_obj_t *s5_cass = ltw_cassette(ui_Screen5, 560, 200, -36, book_get_name(), NULL);
+    ltw_cassette_set_spin(s5_cass, true);   // reels turn while recording
 
     // Solid VU meter: a dark track with one fill bar that grows with the level.
     lv_obj_t *vu_track = lv_obj_create(ui_Screen5);

@@ -77,7 +77,7 @@ void ui_Screen6_screen_init(void) {
              (unsigned)(s / 3600), (unsigned)((s / 60) % 60), (unsigned)(s % 60));
 
     ltw_topbar(ui_Screen6, LT_AMBER, "STOPPED", dur, &ui_S6_PilotLamp, NULL, &ui_S6_Timer);
-    ltw_cassette(ui_Screen6, 620, 200, -36, book_get_name(), NULL);
+    ltw_cassette(ui_Screen6, 560, 200, -36, book_get_name(), NULL);
 
     // Upload status + progress bar
     ui_S6_StatusLabel = lv_label_create(ui_Screen6);

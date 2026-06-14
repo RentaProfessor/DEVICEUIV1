@@ -33,7 +33,7 @@ void ui_Screen12_screen_init(void) {
     lv_obj_set_style_text_color(chipL, lv_color_hex(LT_AMBER), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(chipL, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ltw_cassette(ui_Screen12, 620, 200, -36, book_get_name(), NULL);
+    ltw_cassette(ui_Screen12, 560, 200, -36, book_get_name(), NULL);
 
     // Error banner above chapter banner
     lv_obj_t *err = lv_obj_create(ui_Screen12);

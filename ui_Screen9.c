@@ -34,7 +34,7 @@ void ui_Screen9_screen_init(void) {
     lv_obj_set_style_text_color(chipL, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(chipL, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_t *cass = ltw_cassette(ui_Screen9, 620, 180, -36, book_get_name(), NULL);
+    lv_obj_t *cass = ltw_cassette(ui_Screen9, 560, 180, -36, book_get_name(), NULL);
     lv_obj_set_style_outline_color(cass, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_outline_width(cass, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_outline_pad(cass, 8, LV_PART_MAIN | LV_STATE_DEFAULT);

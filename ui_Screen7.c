@@ -86,7 +86,8 @@ void ui_Screen7_screen_init(void) {
     lv_obj_set_style_bg_opa(ui_Screen7, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ltw_topbar(ui_Screen7, LT_GREEN, "PLAYBACK", "00:00 / 00:00", &s7_lamp, NULL, &ui_S7_Timer);
-    ltw_cassette(ui_Screen7, 620, 200, -36, book_get_name(), NULL);
+    lv_obj_t *s7_cass = ltw_cassette(ui_Screen7, 560, 200, -36, book_get_name(), NULL);
+    ltw_cassette_set_spin(s7_cass, true);   // reels turn while playing
 
     // Status line
     s7_status = lv_label_create(ui_Screen7);

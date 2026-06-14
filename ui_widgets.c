@@ -1,5 +1,7 @@
 // Shared widget builders. See ui_widgets.h.
 #include "ui_widgets.h"
+#include <math.h>
+#include <string.h>
 
 static lv_obj_t *make_panel(lv_obj_t *parent, int w, int h, int x, int y) {
     lv_obj_t *o = lv_obj_create(parent);
@@ -154,19 +156,61 @@ static lv_obj_t *cass_circle(lv_obj_t *p, int cx, int cy, int d, uint32_t color,
     return o;
 }
 
-// One tape reel: wound-tape disc + ivory hub + 6 teeth holes + spindle.
-static void cass_reel(lv_obj_t *cass, int cx, int cy, int rsize) {
-    // Hexagonal unit offsets for the 6 hub teeth (no math.h needed).
-    static const float TX[6] = { 1.0f, 0.5f, -0.5f, -1.0f, -0.5f,  0.5f };
-    static const float TY[6] = { 0.0f, 0.866f, 0.866f, 0.0f, -0.866f, -0.866f };
+// ── Retro cassette palette (navy shell + sunset rainbow band) ──
+#define CASS_SHELL    0x4A5A7E   // molded slate-blue plastic (top of gradient)
+#define CASS_SHELL_D  0x394663   // (bottom of gradient)
+#define CASS_EDGE     0x232E45
+#define CASS_SCREW    0x2C3850
+#define CASS_LABEL    0xF4EEDD   // cream J-card
+#define CASS_BADGE    0x262B36   // "A" side tab
+#define CASS_WINDOW   0x20232C   // tape window
+#define CASS_CLUTCH   0xF1EBDA   // white reel hub
+#define CASS_NOTCH    0x33405C   // clutch notches (read as spinning gaps)
 
-    cass_circle(cass, cx, cy, rsize,            0x241712, 0x3E2C1E, 2);   // wound tape pack
-    cass_circle(cass, cx, cy, rsize * 64 / 100, 0xE8D6A8, 0x8A6A3A, 1);   // ivory hub
-    int tr = rsize * 22 / 100;                                            // teeth ring radius
-    int td = rsize * 13 / 100; if (td < 6) td = 6;                        // tooth diameter
+// Per-cassette reel animation state. The 6 "notches" on each white clutch are
+// real child objects we re-position around the hub each tick, so the reels
+// look like they're physically turning. Lives in the cassette's user_data.
+typedef struct {
+    lv_obj_t   *notch[2][6];
+    int         cx[2], cy, orbit;
+    float       angle;          // radians, advances clockwise
+    bool        spinning;
+    lv_obj_t   *screen;         // only animate while this screen is on top
+    lv_timer_t *timer;
+} cass_anim_t;
+
+static void cass_spin_cb(lv_timer_t *t) {
+    cass_anim_t *a = (cass_anim_t *)t->user_data;
+    if (!a || !a->spinning || lv_scr_act() != a->screen) return;
+    a->angle += 0.13f;          // gentle ~0.3 rev/s; same direction both reels
+    for (int r = 0; r < 2; r++) {
+        for (int k = 0; k < 6; k++) {
+            float ang = a->angle + k * 1.04719755f;   // 60deg spacing
+            lv_obj_t *n = a->notch[r][k];
+            if (!n) continue;
+            lv_obj_set_pos(n, a->cx[r] + (int)(a->orbit * cosf(ang)) - lv_obj_get_width(n) / 2,
+                              a->cy     + (int)(a->orbit * sinf(ang)) - lv_obj_get_height(n) / 2);
+        }
+    }
+}
+
+// Wound tape disc + white 6-notch clutch. tape_r = outer wound radius,
+// clutch_r = hub radius. Notch objects are stored for the spin animation.
+static void cass_build_reel(lv_obj_t *cass, cass_anim_t *a, int reel,
+                            int cx, int cy, int tape_r, int clutch_r) {
+    cass_circle(cass, cx, cy, tape_r * 2, 0x5A3A22, 0x2C1C10, 2);          // wound tape (outer)
+    for (int rr = tape_r - 7; rr > clutch_r + 3; rr -= 7)                  // winding rings
+        cass_circle(cass, cx, cy, rr * 2, (rr & 7) ? 0x6E4A2C : 0x4E3220, 0, 0);
+    cass_circle(cass, cx, cy, clutch_r * 2, CASS_CLUTCH, 0xB8A77E, 1);     // white hub
+    a->cx[reel] = cx; a->cy = cy;
+    a->orbit = clutch_r * 60 / 100;
+    int nd = clutch_r * 38 / 100; if (nd < 5) nd = 5;                      // notch diameter
+    static const float U[6] = { 0.f, 1.0472f, 2.0944f, 3.1416f, 4.1888f, 5.2360f };
     for (int k = 0; k < 6; k++)
-        cass_circle(cass, cx + (int)(TX[k] * tr), cy + (int)(TY[k] * tr), td, 0x140C08, 0, 0);
-    cass_circle(cass, cx, cy, rsize * 16 / 100, 0x0E0907, 0, 0);          // spindle hole
+        a->notch[reel][k] = cass_circle(cass, cx + (int)(a->orbit * cosf(U[k])),
+                                              cy + (int)(a->orbit * sinf(U[k])),
+                                              nd, CASS_NOTCH, 0, 0);
+    cass_circle(cass, cx, cy, clutch_r * 30 / 100, CASS_BADGE, 0, 0);      // spindle
 }
 
 lv_obj_t *ltw_cassette(lv_obj_t *parent, int w, int h, int y_offset,
@@ -175,129 +219,149 @@ lv_obj_t *ltw_cassette(lv_obj_t *parent, int w, int h, int y_offset,
     int x = (800 - w) / 2;
     int y = 64 + (322 - h) / 2 + y_offset;
 
-    // ── Shell: molded warm-grey plastic with a soft vertical sheen ──
+    // ── Shell: navy molded plastic ──
     lv_obj_t *cass = lv_obj_create(parent);
     lv_obj_set_size(cass, w, h);
     lv_obj_set_pos(cass, x, y);
     lv_obj_clear_flag(cass, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(cass, lv_color_hex(0x2C2622), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(cass, lv_color_hex(0x171210), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(cass, lv_color_hex(CASS_SHELL), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_grad_color(cass, lv_color_hex(CASS_SHELL_D), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_dir(cass, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(cass, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(cass, lv_color_hex(0x0C0908), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(cass, lv_color_hex(CASS_EDGE), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(cass, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(cass, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(cass, 16, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(cass, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    // Top edge highlight (thin lighter strip) for a glossy molded look
-    lv_obj_t *sheen = lv_obj_create(cass);
-    lv_obj_set_size(sheen, w - 24, 3);
-    lv_obj_set_pos(sheen, 12, 6);
-    lv_obj_clear_flag(sheen, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(sheen, lv_color_hex(0x4A423C), 0);
-    lv_obj_set_style_bg_opa(sheen, 160, 0);
-    lv_obj_set_style_border_width(sheen, 0, 0);
-    lv_obj_set_style_radius(sheen, 2, 0);
+
+    cass_anim_t *a = (cass_anim_t *)lv_mem_alloc(sizeof(cass_anim_t));
+    if (a) { memset(a, 0, sizeof(*a)); a->screen = parent; }
+    lv_obj_set_user_data(cass, a);
 
     // Four corner screws
-    cass_circle(cass, 15,     15,     10, 0x0E0B09, 0x46403A, 2);
-    cass_circle(cass, w - 15, 15,     10, 0x0E0B09, 0x46403A, 2);
-    cass_circle(cass, 15,     h - 15, 10, 0x0E0B09, 0x46403A, 2);
-    cass_circle(cass, w - 15, h - 15, 10, 0x0E0B09, 0x46403A, 2);
+    cass_circle(cass, 18,     18,     13, CASS_SCREW, 0x55648A, 1);
+    cass_circle(cass, w - 18, 18,     13, CASS_SCREW, 0x55648A, 1);
+    cass_circle(cass, 18,     h - 18, 13, CASS_SCREW, 0x55648A, 1);
+    cass_circle(cass, w - 18, h - 18, 13, CASS_SCREW, 0x55648A, 1);
 
-    // ── Cream J-card label with a colored header band + ruled lines ──
-    int labelW = w - 96, labelH = h * 2 / 5, labelX = 48, labelY = 16;
+    // ── Cream label across the top, with a "Side A" tab ──
+    int labelW = w - 72, labelX = 36, labelY = 14, labelH = h * 30 / 100;
     lv_obj_t *label = lv_obj_create(cass);
     lv_obj_set_size(label, labelW, labelH);
     lv_obj_set_pos(label, labelX, labelY);
     lv_obj_clear_flag(label, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(label, lv_color_hex(0xF5E8C2), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(label, lv_color_hex(0xE4CF9C), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(label, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(label, lv_color_hex(CASS_LABEL), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(label, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(label, lv_color_hex(0x8A6A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(label, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(label, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(label, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(label, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    // Burgundy header band
-    lv_obj_t *band = lv_obj_create(label);
-    lv_obj_set_size(band, labelW, 18);
-    lv_obj_set_pos(band, 0, 0);
-    lv_obj_clear_flag(band, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(band, lv_color_hex(LT_BURGUNDY), 0);
-    lv_obj_set_style_bg_opa(band, 255, 0);
-    lv_obj_set_style_border_width(band, 0, 0);
-    lv_obj_set_style_radius(band, 0, 0);
-    lv_obj_set_style_pad_all(band, 0, 0);
-    lv_obj_t *bl = lv_label_create(band);
-    lv_obj_align(bl, LV_ALIGN_LEFT_MID, 8, 0);
-    lv_label_set_text(bl, "SIDE A");
+    lv_obj_t *badge = lv_obj_create(label);
+    lv_obj_set_size(badge, 30, 26);
+    lv_obj_set_pos(badge, 6, 6);
+    lv_obj_clear_flag(badge, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(badge, lv_color_hex(CASS_BADGE), 0);
+    lv_obj_set_style_bg_opa(badge, 255, 0);
+    lv_obj_set_style_radius(badge, 4, 0);
+    lv_obj_set_style_border_width(badge, 0, 0);
+    lv_obj_t *bl = lv_label_create(badge);
+    lv_obj_center(bl);
+    lv_label_set_text(bl, "A");
     lv_obj_set_style_text_color(bl, lv_color_hex(0xF6ECD4), 0);
-    lv_obj_set_style_text_font(bl, &ui_font_Arhivo_regular_16, 0);
-    lv_obj_set_style_text_letter_space(bl, 2, 0);
-    lv_obj_t *br = lv_label_create(band);
-    lv_obj_align(br, LV_ALIGN_RIGHT_MID, -8, 0);
-    lv_label_set_text(br, "LEGACY TAPE");
-    lv_obj_set_style_text_color(br, lv_color_hex(0xE8C9A0), 0);
-    lv_obj_set_style_text_font(br, &ui_font_Arhivo_regular_16, 0);
-    lv_obj_set_style_text_letter_space(br, 1, 0);
+    lv_obj_set_style_text_font(bl, &ui_font_Arhivo_regular_22, 0);
 
-    // Title (the book name) centered in the label body
     lv_obj_t *titleL = lv_label_create(label);
-    lv_obj_set_width(titleL, labelW - 24);
+    lv_obj_set_width(titleL, labelW - 80);
     lv_label_set_long_mode(titleL, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(titleL, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(titleL, LV_ALIGN_CENTER, 0, 6);
+    lv_obj_align(titleL, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_text(titleL, book_title);
-    lv_obj_set_style_text_color(titleL, lv_color_hex(0x2A1A12), 0);
+    lv_obj_set_style_text_color(titleL, lv_color_hex(0x2A2E3A), 0);
     lv_obj_set_style_text_font(titleL, &ui_font_Arhivo_regular_22, 0);
-    // Two faint ruled lines under the title (handwriting guide feel)
-    for (int r = 0; r < 2; r++) {
-        lv_obj_t *rule = lv_obj_create(label);
-        lv_obj_set_size(rule, labelW - 40, 1);
-        lv_obj_align(rule, LV_ALIGN_BOTTOM_MID, 0, -10 + r * 9);
-        lv_obj_clear_flag(rule, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(rule, lv_color_hex(0xB89A60), 0);
-        lv_obj_set_style_bg_opa(rule, 130, 0);
-        lv_obj_set_style_border_width(rule, 0, 0);
-        lv_obj_set_style_radius(rule, 0, 0);
+
+    // ── Sunset rainbow band behind the reels (clipped to rounded corners) ──
+    static const uint32_t STRIPE[5] = { 0xF0E2BE, 0xF1C24E, 0xEC9648, 0xE26A48, 0xC8474A };
+    int bandX = 26, bandY = labelY + labelH + 8;
+    int bandW = w - 52, bandH = h - bandY - 30;
+    lv_obj_t *rb = lv_obj_create(cass);
+    lv_obj_set_size(rb, bandW, bandH);
+    lv_obj_set_pos(rb, bandX, bandY);
+    lv_obj_clear_flag(rb, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(rb, lv_color_hex(STRIPE[0]), 0);
+    lv_obj_set_style_bg_opa(rb, 255, 0);
+    lv_obj_set_style_border_width(rb, 0, 0);
+    lv_obj_set_style_radius(rb, 8, 0);
+    lv_obj_set_style_pad_all(rb, 0, 0);
+    lv_obj_set_style_clip_corner(rb, true, 0);
+    int sh = bandH / 5;
+    for (int s = 0; s < 5; s++) {
+        lv_obj_t *st = lv_obj_create(rb);
+        lv_obj_set_size(st, bandW, (s == 4) ? bandH - 4 * sh : sh);
+        lv_obj_set_pos(st, 0, s * sh);
+        lv_obj_clear_flag(st, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_color(st, lv_color_hex(STRIPE[s]), 0);
+        lv_obj_set_style_bg_opa(st, 255, 0);
+        lv_obj_set_style_border_width(st, 0, 0);
+        lv_obj_set_style_radius(st, 0, 0);
     }
 
-    // ── Recessed tape window framing both reels ──
-    int rsize  = h * 42 / 100;
-    int reelCy = labelY + labelH + (h - (labelY + labelH)) / 2 - 4;
-    int winH   = rsize + 14;
+    // ── Reels + central tape window ──
+    int cy      = bandY + bandH / 2;
+    int leftCx  = w * 27 / 100;
+    int rightCx = w * 73 / 100;
+    int clutchR = bandH * 26 / 100; if (clutchR < 16) clutchR = 16;
+    int bigR    = bandH * 50 / 100;             // supply reel: lots of tape
+    int smallR  = clutchR + (bigR - clutchR) / 2;  // take-up reel: less tape
+
+    // Central window with vertical tape striations
+    int winW = w * 13 / 100, winH = bandH - 18;
     lv_obj_t *win = lv_obj_create(cass);
-    lv_obj_set_size(win, w * 76 / 100, winH);
-    lv_obj_set_pos(win, w * 12 / 100, reelCy - winH / 2);
+    lv_obj_set_size(win, winW, winH);
+    lv_obj_set_pos(win, w / 2 - winW / 2, cy - winH / 2);
     lv_obj_clear_flag(win, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(win, lv_color_hex(0x0A0605), 0);
+    lv_obj_set_style_bg_color(win, lv_color_hex(CASS_WINDOW), 0);
     lv_obj_set_style_bg_opa(win, 255, 0);
-    lv_obj_set_style_border_color(win, lv_color_hex(0x37291E), 0);
-    lv_obj_set_style_border_width(win, 1, 0);
-    lv_obj_set_style_radius(win, 8, 0);
+    lv_obj_set_style_radius(win, 4, 0);
+    lv_obj_set_style_border_width(win, 0, 0);
     lv_obj_set_style_pad_all(win, 0, 0);
+    for (int v = 0; v < 4; v++) {
+        lv_obj_t *ln = lv_obj_create(win);
+        lv_obj_set_size(ln, 2, winH - 16);
+        lv_obj_align(ln, LV_ALIGN_LEFT_MID, 8 + v * (winW - 18) / 3, 0);
+        lv_obj_clear_flag(ln, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_color(ln, lv_color_hex(0x6E665C), 0);
+        lv_obj_set_style_bg_opa(ln, 200, 0);
+        lv_obj_set_style_border_width(ln, 0, 0);
+        lv_obj_set_style_radius(ln, 0, 0);
+    }
 
-    int leftCx  = w * 30 / 100;
-    int rightCx = w * 70 / 100;
-    // Exposed tape spanning between the two hubs
-    lv_obj_t *tape = lv_obj_create(cass);
-    lv_obj_set_size(tape, rightCx - leftCx, 5);
-    lv_obj_set_pos(tape, leftCx, reelCy - 2);
-    lv_obj_clear_flag(tape, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(tape, lv_color_hex(0x4A3320), 0);
-    lv_obj_set_style_bg_opa(tape, 255, 0);
-    lv_obj_set_style_border_width(tape, 0, 0);
-    lv_obj_set_style_radius(tape, 0, 0);
+    if (a) {
+        cass_build_reel(cass, a, 0, leftCx,  cy, bigR,   clutchR);
+        cass_build_reel(cass, a, 1, rightCx, cy, smallR, clutchR);
+    }
 
-    cass_reel(cass, leftCx,  reelCy, rsize);
-    cass_reel(cass, rightCx, reelCy, rsize);
-
-    // Bottom alignment holes (the little row along a cassette's lower edge)
+    // ── Bottom mechanism: recessed lip + capstan/sprocket holes ──
+    lv_obj_t *lip = lv_obj_create(cass);
+    lv_obj_set_size(lip, w * 52 / 100, 20);
+    lv_obj_align(lip, LV_ALIGN_BOTTOM_MID, 0, -10);
+    lv_obj_clear_flag(lip, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_bg_color(lip, lv_color_hex(CASS_SHELL_D), 0);
+    lv_obj_set_style_bg_opa(lip, 255, 0);
+    lv_obj_set_style_border_color(lip, lv_color_hex(CASS_EDGE), 0);
+    lv_obj_set_style_border_width(lip, 1, 0);
+    lv_obj_set_style_radius(lip, 4, 0);
     for (int k = -2; k <= 2; k++)
-        cass_circle(cass, w / 2 + k * 16, h - 14, 6, 0x0A0605, 0, 0);
+        if (k != 0) cass_circle(cass, w / 2 + k * (w * 11 / 100), h - 20, 8, 0x1B2536, 0, 0);
 
     return cass;
+}
+
+void ltw_cassette_set_spin(lv_obj_t *cass, bool on) {
+    if (!cass) return;
+    cass_anim_t *a = (cass_anim_t *)lv_obj_get_user_data(cass);
+    if (!a) return;
+    a->spinning = on;
+    // Lazily create the spin timer; it self-gates on a->spinning + active screen.
+    if (on && !a->timer) a->timer = lv_timer_create(cass_spin_cb, 66, a);
 }
 
 // ─── Pilot lamp ──────────────────────────────────────────────────────────────
