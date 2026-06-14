@@ -364,48 +364,70 @@ void ltw_cassette_set_spin(lv_obj_t *cass, bool on) {
     if (on && !a->timer) a->timer = lv_timer_create(cass_spin_cb, 66, a);
 }
 
-// ── Recording-screen hero cassette (real artwork image + spinning reels) ──
-// cassette_body is the exact reference cassette (477x266) cropped from the
-// user's image; cassette_hub is a circular crop of a reel clutch that we rotate
-// over each reel so it physically spins. Reel centres come from the artwork.
-extern const lv_img_dsc_t cassette_body;
-extern const lv_img_dsc_t cassette_hub;
-#define HERO_W   477
-#define HERO_LCX 139    // left  reel centre in the artwork
-#define HERO_RCX 309    // right reel centre
-#define HERO_CY  114    // reel  centre y
-#define HERO_HUB 80     // hub sprite size
+// ── Cassette hero (real artwork image + smooth spinning reels) ──
+// cassette_body is the reference cassette (477x266) with a BLANK label; the
+// label text is overlaid below so it's dynamic per screen. The reels are a
+// PRE-RENDERED rotation sprite-sheet (cassette_reels[]) cycled by a timer —
+// pre-rendered means no runtime-rotation jaggies and no off-center wobble
+// (the earlier version rotated a square crop about an imprecise pivot, which
+// read as a block orbiting instead of a hub spinning).
+extern const lv_img_dsc_t  cassette_body;
+extern const lv_img_dsc_t *cassette_reels[];
+extern const int           cassette_reel_count;
+#define HERO_W    477
+#define HERO_LCX  141   // reel centres in the artwork (auto-detected)
+#define HERO_RCX  318
+#define HERO_CY   116
+#define HERO_REEL 78    // reel sprite size
 
-typedef struct { lv_obj_t *hub[2]; int angle; lv_obj_t *screen; } hero_anim_t;
+typedef struct {
+    lv_obj_t   *reel[2];
+    int         frame;
+    bool        spinning;
+    lv_obj_t   *screen;
+    lv_timer_t *timer;
+} hero_anim_t;
 
-static void hero_spin_cb(lv_timer_t *t) {
+static void hero_reel_cb(lv_timer_t *t) {
     hero_anim_t *a = (hero_anim_t *)t->user_data;
-    if (!a || lv_scr_act() != a->screen) return;       // only spin while visible
-    a->angle = (a->angle + 55) % 3600;                 // clockwise, both reels
-    if (a->hub[0]) lv_img_set_angle(a->hub[0], a->angle);
-    if (a->hub[1]) lv_img_set_angle(a->hub[1], a->angle);
+    if (!a || !a->spinning || lv_scr_act() != a->screen) return;   // only when visible
+    a->frame = (a->frame + 1) % cassette_reel_count;
+    if (a->reel[0]) lv_img_set_src(a->reel[0], cassette_reels[a->frame]);
+    if (a->reel[1]) lv_img_set_src(a->reel[1], cassette_reels[a->frame]);
 }
 
-lv_obj_t *ltw_cassette_hero(lv_obj_t *parent, int y) {
+lv_obj_t *ltw_cassette_hero(lv_obj_t *parent, int y, const char *label,
+                            uint32_t label_color, bool spinning) {
     lv_obj_t *body = lv_img_create(parent);
     lv_img_set_src(body, &cassette_body);
     lv_obj_set_pos(body, (800 - HERO_W) / 2, y);
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLLABLE);
 
+    // Dynamic label text on the blank cassette label (offset right of the "A").
+    if (label && label[0]) {
+        lv_obj_t *lab = lv_label_create(body);
+        lv_obj_set_width(lab, 320);
+        lv_label_set_long_mode(lab, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(lab, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(lab, LV_ALIGN_TOP_MID, 28, 27);
+        lv_label_set_text(lab, label);
+        lv_obj_set_style_text_color(lab, lv_color_hex(label_color), 0);
+        lv_obj_set_style_text_font(lab, &ui_font_Arhivo_regular_22, 0);
+        lv_obj_set_style_text_letter_space(lab, 1, 0);
+    }
+
     hero_anim_t *a = (hero_anim_t *)lv_mem_alloc(sizeof(hero_anim_t));
-    if (a) { memset(a, 0, sizeof(*a)); a->screen = parent; }
+    if (a) { memset(a, 0, sizeof(*a)); a->screen = parent; a->spinning = spinning; }
 
     int cx[2] = { HERO_LCX, HERO_RCX };
     for (int i = 0; i < 2; i++) {
-        lv_obj_t *hub = lv_img_create(body);
-        lv_img_set_src(hub, &cassette_hub);
-        lv_obj_set_pos(hub, cx[i] - HERO_HUB / 2, HERO_CY - HERO_HUB / 2);
-        lv_img_set_pivot(hub, HERO_HUB / 2, HERO_HUB / 2);
-        lv_img_set_antialias(hub, true);
-        lv_obj_clear_flag(hub, LV_OBJ_FLAG_SCROLLABLE);
-        if (a) a->hub[i] = hub;
+        lv_obj_t *reel = lv_img_create(body);
+        lv_img_set_src(reel, cassette_reels[0]);
+        lv_obj_set_pos(reel, cx[i] - HERO_REEL / 2, HERO_CY - HERO_REEL / 2);
+        lv_obj_clear_flag(reel, LV_OBJ_FLAG_SCROLLABLE);
+        if (a) a->reel[i] = reel;
     }
-    if (a) lv_timer_create(hero_spin_cb, 60, a);
+    if (a && spinning) a->timer = lv_timer_create(hero_reel_cb, 55, a);
     return body;
 }
 

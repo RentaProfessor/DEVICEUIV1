@@ -71,10 +71,12 @@ lv_obj_t *ltw_cassette(lv_obj_t *parent,
 // screens). The reels animate only while their screen is on top.
 void ltw_cassette_set_spin(lv_obj_t *cass, bool on);
 
-// Recording-screen HERO cassette: the exact reference artwork as an embedded
-// image, with the two reel clutches rotating (spin self-gates to `parent`).
-// Positioned centered at the given top `y`. Returns the body image object.
-lv_obj_t *ltw_cassette_hero(lv_obj_t *parent, int y);
+// HERO cassette: the reference artwork as an embedded image with smooth
+// (frame-cycled) spinning reels. `label`/`label_color` set the dynamic cassette
+// label text; `spinning` turns the reels (self-gated to `parent` being on top).
+// Centered at top `y`. Returns the body image object.
+lv_obj_t *ltw_cassette_hero(lv_obj_t *parent, int y, const char *label,
+                            uint32_t label_color, bool spinning);
 
 // Picker header (used by Book Picker / Chapter Picker / Settings).
 void ltw_picker_header(lv_obj_t *parent,

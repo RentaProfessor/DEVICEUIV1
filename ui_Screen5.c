@@ -71,7 +71,7 @@ void ui_Screen5_screen_init(void) {
     ltw_pulse_lamp(ui_S5_PilotLamp, 1100);
 
     // Hero cassette: the real reference artwork with spinning reels.
-    ltw_cassette_hero(ui_Screen5, 58);
+    ltw_cassette_hero(ui_Screen5, 58, "RECORDING", 0xC8202A, true);
 
     // Stop control (single active button; the 5-cap legend row is temporary).
     ltw_hw_legend(ui_Screen5,
