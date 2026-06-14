@@ -91,7 +91,7 @@ void ui_Screen5_screen_init(void) {
     // Thin live level/progress bar along the very bottom.
     lv_obj_t *track = lv_obj_create(ui_Screen5);
     lv_obj_set_size(track, 780, 8);
-    lv_obj_set_pos(track, 10, 466);
+    lv_obj_set_pos(track, 10, 472);
     lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(track, lv_color_hex(0x0C1322), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(track, 255, LV_PART_MAIN | LV_STATE_DEFAULT);

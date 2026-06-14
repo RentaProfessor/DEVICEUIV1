@@ -35,39 +35,35 @@ static void s6_tick(lv_timer_t *t) {
     uint32_t uploaded = audio_upload_chunks_uploaded();
     uint32_t total    = audio_record_chunks_captured();
 
+    (void)buf;
     if (st == AUDIO_STATE_FINALIZING) {
         if (total > 0) {
             uint8_t pct = (uint8_t)((uint32_t)uploaded * 100 / total);
-            snprintf(buf, sizeof(buf), "Uploading last chunks… %u / %u (%u%%)",
-                     (unsigned)uploaded, (unsigned)total, pct);
-            lv_label_set_text(ui_S6_StatusLabel, buf);
-            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, (lv_coord_t)(600u * pct / 100u));
+            lv_label_set_text(ui_S6_StatusLabel, "UPLOADING");
+            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, (lv_coord_t)(780u * pct / 100u));
         } else {
-            lv_label_set_text(ui_S6_StatusLabel, "Finalizing…");
+            lv_label_set_text(ui_S6_StatusLabel, "SAVING");
         }
     } else if (st == AUDIO_STATE_COMPLETE) {
         // COMPLETE can mean "uploaded fine" OR "gave up with nothing uploaded".
-        // If there's an error string, the upload did NOT succeed — say so.
         if (audio_upload_last_error()[0] != 0) {
-            snprintf(buf, sizeof(buf), "Not uploaded: %.60s", audio_upload_last_error());
-            lv_label_set_text(ui_S6_StatusLabel, buf);
+            lv_label_set_text(ui_S6_StatusLabel, "NOT SENT");
             if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 0);
         } else {
-            lv_label_set_text(ui_S6_StatusLabel, "Uploaded — transcribing on server");
-            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 600);
+            lv_label_set_text(ui_S6_StatusLabel, "UPLOADED");
+            if (ui_S6_ProgressBar) lv_obj_set_width(ui_S6_ProgressBar, 780);
         }
     } else if (audio_upload_last_error()[0] != 0) {
-        snprintf(buf, sizeof(buf), "Issue: %.70s", audio_upload_last_error());
-        lv_label_set_text(ui_S6_StatusLabel, buf);
+        lv_label_set_text(ui_S6_StatusLabel, "ISSUE");
     } else {
-        lv_label_set_text(ui_S6_StatusLabel, "Recording saved");
+        lv_label_set_text(ui_S6_StatusLabel, "SAVED");
     }
 }
 
 void ui_Screen6_screen_init(void) {
     ui_Screen6 = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_Screen6, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_Screen6, lv_color_hex(LT_BG), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Screen6, lv_color_hex(0x161C2A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen6, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // Show last recording duration in the timer
@@ -77,24 +73,27 @@ void ui_Screen6_screen_init(void) {
              (unsigned)(s / 3600), (unsigned)((s / 60) % 60), (unsigned)(s % 60));
 
     ltw_topbar(ui_Screen6, LT_AMBER, "STOPPED", dur, &ui_S6_PilotLamp, NULL, &ui_S6_Timer);
-    ltw_cassette(ui_Screen6, 560, 200, -36, book_get_name(), NULL);
+    lv_obj_t *s6_cass = ltw_cassette_hero(ui_Screen6, 58, NULL, 0, false);   // static reels
 
-    // Upload status + progress bar
-    ui_S6_StatusLabel = lv_label_create(ui_Screen6);
-    lv_obj_set_pos(ui_S6_StatusLabel, 100, 274);
-    lv_obj_set_width(ui_S6_StatusLabel, 600);
-    lv_label_set_text(ui_S6_StatusLabel, "Recording saved locally");
-    lv_obj_set_style_text_color(ui_S6_StatusLabel, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_S6_StatusLabel, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // Dynamic cassette label = short upload status, on the blank label band.
+    ui_S6_StatusLabel = lv_label_create(s6_cass);
+    lv_obj_set_width(ui_S6_StatusLabel, 320);
+    lv_label_set_long_mode(ui_S6_StatusLabel, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(ui_S6_StatusLabel, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_align(ui_S6_StatusLabel, LV_ALIGN_TOP_MID, 28, 27);
+    lv_label_set_text(ui_S6_StatusLabel, "SAVED");
+    lv_obj_set_style_text_color(ui_S6_StatusLabel, lv_color_hex(0xC87A2A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_S6_StatusLabel, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    // Upload progress bar along the very bottom.
     lv_obj_t *track = lv_obj_create(ui_Screen6);
-    lv_obj_set_size(track, 600, 8);
-    lv_obj_set_pos(track, 100, 304);
+    lv_obj_set_size(track, 780, 8);
+    lv_obj_set_pos(track, 10, 472);
     lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(track, lv_color_hex(0x1A1410), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(track, 200, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(track, lv_color_hex(0x0C1322), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(track, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(track, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(track, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(track, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_S6_ProgressBar = lv_obj_create(track);
@@ -103,7 +102,7 @@ void ui_Screen6_screen_init(void) {
     lv_obj_set_style_bg_color(ui_S6_ProgressBar, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_S6_ProgressBar, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_S6_ProgressBar, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui_S6_ProgressBar, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(ui_S6_ProgressBar, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ltw_hw_legend(ui_Screen6,
                   "Overdub",  s6_to_rec,

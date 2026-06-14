@@ -49,7 +49,7 @@ static void s7_tick(lv_timer_t *t) {
 
     switch (st) {
         case PLAYBACK_FETCHING:
-            lv_label_set_text(s7_status, "Loading recording…");
+            lv_label_set_text(s7_status, "LOADING");
             break;
         case PLAYBACK_PLAYING: {
             uint32_t pos = audio_playback_position_sec();
@@ -57,21 +57,20 @@ static void s7_tick(lv_timer_t *t) {
             char a[8], b[8]; fmt_mmss(pos, a, sizeof(a)); fmt_mmss(dur, b, sizeof(b));
             snprintf(buf, sizeof(buf), "%s / %s", a, b);
             if (ui_S7_Timer) lv_label_set_text(ui_S7_Timer, buf);
-            lv_label_set_text(s7_status, "Playing");
+            lv_label_set_text(s7_status, "PLAYING");
             if (s7_progress && dur > 0)
-                lv_obj_set_width(s7_progress, (lv_coord_t)((uint32_t)pos * 600 / dur));
+                lv_obj_set_width(s7_progress, (lv_coord_t)((uint32_t)pos * 780 / dur));
             break;
         }
         case PLAYBACK_DONE:
-            lv_label_set_text(s7_status, "Finished — press STOP to go back");
-            if (s7_progress) lv_obj_set_width(s7_progress, 600);
+            lv_label_set_text(s7_status, "FINISHED");
+            if (s7_progress) lv_obj_set_width(s7_progress, 780);
             break;
         case PLAYBACK_NONE:
-            lv_label_set_text(s7_status, "No recording for this chapter yet");
+            lv_label_set_text(s7_status, "NO CLIP YET");
             break;
         case PLAYBACK_ERROR:
-            snprintf(buf, sizeof(buf), "Playback issue: %.45s", audio_playback_last_error());
-            lv_label_set_text(s7_status, buf);
+            lv_label_set_text(s7_status, "ERROR");
             break;
         default:
             lv_label_set_text(s7_status, "");
@@ -82,43 +81,40 @@ static void s7_tick(lv_timer_t *t) {
 void ui_Screen7_screen_init(void) {
     ui_Screen7 = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_Screen7, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_Screen7, lv_color_hex(LT_BG), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Screen7, lv_color_hex(0x161C2A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen7, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ltw_topbar(ui_Screen7, LT_GREEN, "PLAYBACK", "00:00 / 00:00", &s7_lamp, NULL, &ui_S7_Timer);
-    lv_obj_t *s7_cass = ltw_cassette(ui_Screen7, 560, 200, -36, book_get_name(), NULL);
-    ltw_cassette_set_spin(s7_cass, true);   // reels turn while playing
+    lv_obj_t *s7_cass = ltw_cassette_hero(ui_Screen7, 58, NULL, 0, true);   // reels spin
 
-    // Status line
-    s7_status = lv_label_create(ui_Screen7);
-    lv_obj_set_width(s7_status, 620);
-    lv_obj_set_pos(s7_status, 90, 278);
-    lv_label_set_long_mode(s7_status, LV_LABEL_LONG_WRAP);
-    lv_label_set_text(s7_status, "Loading recording…");
-    lv_obj_set_style_text_color(s7_status, lv_color_hex(LT_INK), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(s7_status, &ui_font_Arhivo_regular_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // Dynamic cassette label = short playback status, on the blank label band.
+    s7_status = lv_label_create(s7_cass);
+    lv_obj_set_width(s7_status, 320);
+    lv_label_set_long_mode(s7_status, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(s7_status, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_align(s7_status, LV_ALIGN_TOP_MID, 28, 27);
+    lv_label_set_text(s7_status, "LOADING");
+    lv_obj_set_style_text_color(s7_status, lv_color_hex(0x1E7A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(s7_status, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    // Progress bar
+    // Playback progress bar along the very bottom.
     lv_obj_t *track = lv_obj_create(ui_Screen7);
-    lv_obj_set_size(track, 600, 10);
-    lv_obj_set_pos(track, 100, 308);
+    lv_obj_set_size(track, 780, 8);
+    lv_obj_set_pos(track, 10, 472);
     lv_obj_clear_flag(track, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(track, lv_color_hex(0x1A1410), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(track, 200, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(track, lv_color_hex(0x0C1322), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(track, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(track, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(track, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_radius(track, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(track, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     s7_progress = lv_obj_create(track);
-    lv_obj_set_size(s7_progress, 0, 10);
+    lv_obj_set_size(s7_progress, 0, 8);
     lv_obj_set_pos(s7_progress, 0, 0);
     lv_obj_set_style_bg_color(s7_progress, lv_color_hex(LT_GREEN), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(s7_progress, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(s7_progress, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(s7_progress, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    ltw_pulse_lamp(s7_lamp, 1600);   // gentle green pulse while playing
+    lv_obj_set_style_radius(s7_progress, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ── Transport row: VOL-  [VOL xx%]  VOL+ ............... STOP ──
     // (Replaces the 5-cap hw legend — only volume + stop matter during

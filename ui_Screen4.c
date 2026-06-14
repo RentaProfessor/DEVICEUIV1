@@ -37,7 +37,7 @@ void ui_event_S4_btn_play(lv_event_t *e) {
 void ui_Screen4_screen_init(void) {
     ui_Screen4 = lv_obj_create(NULL);
     lv_obj_clear_flag(ui_Screen4, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_Screen4, lv_color_hex(0xC89060), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_Screen4, lv_color_hex(0x161C2A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_Screen4, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     // ───── TOP STATUS BAR ─────
@@ -92,62 +92,16 @@ void ui_Screen4_screen_init(void) {
     lv_obj_center(lblS);
     lv_obj_add_event_cb(btnSettings, ui_event_S4_btn_settings, LV_EVENT_ALL, NULL);
 
-    // ───── READY HINT ─────
-    lv_obj_t *hint = lv_label_create(ui_Screen4);
-    lv_obj_set_pos(hint, 0, 64);
-    lv_obj_set_width(hint, 800);
-    lv_label_set_text(hint, "PRESS THE REC BUTTON TO BEGIN RECORDING");
-    lv_obj_set_style_text_color(hint, lv_color_hex(0x8A5A3A), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(hint, &ui_font_Arhivo_regular_16, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_letter_space(hint, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    // ───── CASSETTE PANEL ─────
-    lv_obj_t *cassette = lv_obj_create(ui_Screen4);
-    lv_obj_set_size(cassette, 620, 230);
-    lv_obj_align(cassette, LV_ALIGN_CENTER, 0, -16);
-    lv_obj_clear_flag(cassette, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(cassette, lv_color_hex(0x1F1510), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_color(cassette, lv_color_hex(0x170E0B), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_grad_dir(cassette, LV_GRAD_DIR_VER, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(cassette, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(cassette, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(cassette, 2, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(cassette, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(cassette, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    // Cassette label band
-    lv_obj_t *labelband = lv_obj_create(cassette);
-    lv_obj_set_size(labelband, 540, 84);
-    lv_obj_align(labelband, LV_ALIGN_TOP_MID, 0, 30);
-    lv_obj_clear_flag(labelband, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(labelband, lv_color_hex(0xF3E3B8), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(labelband, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(labelband, lv_color_hex(0x3A2418), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(labelband, 1, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(labelband, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_pad_all(labelband, 6, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    ui_S4_BookTitle = lv_label_create(labelband);
-    lv_obj_center(ui_S4_BookTitle);
-    // Read book name from NVS (set by user on Screen3 keyboard).
-    // Falls back to "My Stories" if nothing was entered yet.
+    // ───── CASSETTE (shared hero artwork; reels static on the Ready screen) ─────
+    lv_obj_t *s4_cass = ltw_cassette_hero(ui_Screen4, 58, NULL, 0, false);
+    ui_S4_BookTitle = lv_label_create(s4_cass);
+    lv_obj_set_width(ui_S4_BookTitle, 320);
+    lv_label_set_long_mode(ui_S4_BookTitle, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(ui_S4_BookTitle, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_align(ui_S4_BookTitle, LV_ALIGN_TOP_MID, 28, 27);
     lv_label_set_text(ui_S4_BookTitle, book_get_name());
-    lv_obj_set_style_text_color(ui_S4_BookTitle, lv_color_hex(0x2A1A12), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_S4_BookTitle, lv_color_hex(0x2A2E3A), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_S4_BookTitle, &ui_font_Arhivo_regular_22, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    // Two reels (static circles)
-    for (int i = 0; i < 2; i++) {
-        lv_obj_t *reel = lv_obj_create(cassette);
-        lv_obj_set_size(reel, 78, 78);
-        lv_obj_set_pos(reel, i == 0 ? 130 : 410, 132);
-        lv_obj_clear_flag(reel, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_bg_color(reel, lv_color_hex(0x100808), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_bg_opa(reel, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_radius(reel, LV_RADIUS_CIRCLE, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_color(reel, lv_color_hex(0xC8A868), LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_border_width(reel, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
-        lv_obj_set_style_pad_all(reel, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    }
 
     // ───── HW BUTTON LEGEND (tappable touch buttons until Uxcell is wired) ─────
     ltw_hw_legend(ui_Screen4,
